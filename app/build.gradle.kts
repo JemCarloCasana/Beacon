@@ -47,6 +47,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.8.2")
+    implementation("androidx.fragment:fragment-ktx:1.8.2")
 
     // Material 3
     implementation("com.google.android.material:material:1.12.0")
@@ -55,23 +56,27 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.6.2")
 
-    // Firebase BOM
-    implementation(platform("com.google.firebase:firebase-bom:34.8.0"))
+    // Maplibre
+    implementation("org.maplibre.gl:android-sdk:12.3.1")
 
-    // Firebase libraries
-    implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-storage")
+    // ========= START: FIREBASE DEPENDENCIES =========
+
+    // Import the Firebase BoM (Bill of Materials)
+    // This will manage the versions of all other Firebase libraries.
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+
+    // Add the Firebase libraries you want to use (without versions)
     implementation("com.google.firebase:firebase-analytics")
-
-    // Firebase AppCheck Debug
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-storage")
     implementation("com.google.firebase:firebase-appcheck-debug")
+
+    // =========  END: FIREBASE DEPENDENCIES  =========
+
 
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.6")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-
-    // Maplibre
-    implementation("org.maplibre.gl:android-sdk:12.3.1")
 }

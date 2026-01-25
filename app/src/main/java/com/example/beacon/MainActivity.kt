@@ -2,17 +2,17 @@ package com.example.beacon
 
 import android.content.Intent
 import android.os.Bundle
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.example.beacon.auth.LoginActivity
 import com.example.beacon.databinding.ActivityMainBinding
 import com.example.beacon.home.HomeFragment
-import com.example.beacon.map.MapFragment
-import com.google.firebase.auth.FirebaseAuth
+import com.example.beacon.MapFragment
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var auth: FirebaseAuth
+    private val viewModel: ActivityViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -20,7 +20,13 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        auth = FirebaseAuth.getInstance()
+        // Observe navigation event
+        viewModel.navigateToLogin.observe(this) { event ->
+            event.getContentIfNotHandled()?.let { // Only proceed if the event has not been handled
+                startActivity(Intent(this, LoginActivity::class.java))
+                finish()
+            }
+        }
 
         // Load HomeFragment by default
         if (savedInstanceState == null) {
@@ -43,8 +49,7 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 R.id.nav_profile -> {
-                    // Placeholder for ProfileFragment
-                    // replaceFragment(ProfileFragment())
+                    viewModel.logout() // Call logout from the ViewModel
                     true
                 }
                 else -> false
@@ -56,14 +61,5 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragmentContainer, fragment)
             .commit()
-    }
-
-    override fun onStart() {
-        super.onStart()
-        // Session guard
-        if (auth.currentUser == null) {
-            startActivity(Intent(this, LoginActivity::class.java))
-            finish()
-        }
     }
 }
