@@ -3,27 +3,33 @@ package com.example.beacon
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.drawable.Drawable
+import android.location.Location
+import android.net.Uri
 import android.os.Bundle
+import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import com.example.beacon.BuildConfig
 import com.example.beacon.databinding.FragmentMapBinding
 import com.example.beacon.sos.SosViewModel
-import com.google.android.material.snackbar.Snackbar
-import com.google.firebase.auth.ktx.auth
+import com.example.beacon.viewmodel.LocationStatusViewModel
+import com.example.beacon.viewmodel.LocationViewModel
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+// MapLibre Imports
 import org.maplibre.android.annotations.IconFactory
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
@@ -42,7 +48,9 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.OnMapReadyCallback
 import org.maplibre.android.maps.Style
-import java.util.* 
+import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.FillExtrusionLayer
+import org.maplibre.android.style.layers.PropertyFactory
 
 class MapFragment : Fragment(), OnMapReadyCallback {
 
@@ -53,44 +61,35 @@ class MapFragment : Fragment(), OnMapReadyCallback {
     private var mapLibreMap: MapLibreMap? = null
     private var tempMarker: Marker? = null
 
-    private val activityViewModel: ActivityViewModel by activityViewModels()
-    // --- THIS IS THE CRITICAL CHANGE ---
-    // Get the SOS ViewModel that is shared with the Activity and other fragments.
-    private val sosViewModel: SosViewModel by activityViewModels()
+    // State to track if we are in "Navigation Mode"
+    private var isNavigationMode = false
 
-    private val db = Firebase.firestore
-    private val auth = Firebase.auth
-
-    private val initialLatLng = LatLng(14.5995, 120.9842)
-    private val initialZoom = 12.0
-
+    // For location updates
     private var locationEngine: LocationEngine? = null
-    private val locationEngineCallback = object : LocationEngineCallback<LocationEngineResult> {
+    private val locationCallback = object : LocationEngineCallback<LocationEngineResult> {
         override fun onSuccess(result: LocationEngineResult?) {
-            result?.lastLocation?.let { location ->
-                activityViewModel.updateUserLocation(location.latitude, location.longitude)
-                sosViewModel.updateCurrentLocation(location)
-                Log.d("MapFragment", "Location update SUCCESS: ${location.latitude}, ${location.longitude}")
-            } ?: Log.d("MapFragment", "Location result was null.")
+            val lastLocation = result?.lastLocation
+            lastLocation?.let { location ->
+                locationViewModel.onLocationUpdate(location)
+            }
         }
 
         override fun onFailure(exception: Exception) {
-            if(isAdded) {
-                Log.e("MapFragment", "Location update FAILURE", exception)
-            }
+            Log.e("MapFragment", "Location Engine Failure", exception)
+            locationViewModel.onLocationError(exception.message ?: "Unknown error")
         }
     }
 
-    private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
-            if (isGranted && isAdded) {
-                mapLibreMap?.getStyle { style ->
-                    enableUserLocation(style)
-                }
-            } else if (isAdded) {
-                Snackbar.make(binding.root, "Location permission denied.", Snackbar.LENGTH_LONG).show()
-            }
-        }
+    private val db = Firebase.firestore
+
+    // ViewModels
+    private val activityViewModel: ActivityViewModel by activityViewModels()
+    private val sosViewModel: SosViewModel by activityViewModels()
+    private val locationStatusViewModel: LocationStatusViewModel by activityViewModels()
+    private val locationViewModel: LocationViewModel by activityViewModels()
+
+    private val initialLatLng = LatLng(14.5995, 120.9842)
+    private val initialZoom = 12.0
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentMapBinding.inflate(inflater, container, false)
@@ -102,125 +101,267 @@ class MapFragment : Fragment(), OnMapReadyCallback {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        setupClickListeners()
+
+        // 1. Wire up the Navigation/Recenter Button
+        binding.btnRecenter.setOnClickListener {
+            toggleNavigationMode()
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
+        }
+
+        // 2. Wire up the SOS Button
+        binding.sosButton.setOnClickListener {
+            Toast.makeText(requireContext(), "Hold SOS button to trigger", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onMapReady(map: MapLibreMap) {
         mapLibreMap = map
-        Log.d("MapFragment", "onMapReady called.")
 
-        map.setStyle(Style.Builder().fromUri("https://demotiles.maplibre.org/style.json")) { style ->
-            Log.d("MapFragment", "Map style loaded.")
+        // 🔐 SECURE API KEY INJECTION
+        // This reads the key from your gradle.properties via BuildConfig
+        val apiKey = BuildConfig.MAPTILER_API_KEY
 
+        // Use the "Streets" style (Google Maps lookalike)
+        val mapStyleUrl = "https://api.maptiler.com/maps/streets/style.json?key=$apiKey"
+
+        map.setStyle(Style.Builder().fromUri(mapStyleUrl)) { style ->
+            // Initial Camera Position
             map.cameraPosition = CameraPosition.Builder()
                 .target(initialLatLng)
                 .zoom(initialZoom)
                 .build()
 
             enableUserLocation(style)
-            loadSosMarkers(style)
 
-            map.addOnMapClickListener { latLng ->
-                handleMapTap(latLng)
+            // 🚀 3D Buildings are compatible with MapTiler Streets!
+            enable3DBuildings(style)
+
+            loadSosMarkers()
+
+            // SOS Marker Click Listener -> Launch Google Maps Nav
+            map.setOnMarkerClickListener { marker ->
+                if (marker.title == "SOS") {
+                    launchGoogleMapsNavigation(marker.position.latitude, marker.position.longitude)
+                    true
+                } else {
+                    false
+                }
+            }
+
+            // Normal Map Tap -> Drop Pin
+            map.addOnMapClickListener { point: LatLng ->
+                if (isNavigationMode) disableNavigationMode()
+                handleMapTap(point)
                 true
             }
         }
     }
 
-    private fun setupClickListeners() {
-        binding.sosButton.setOnClickListener {
-            val location = mapLibreMap?.locationComponent?.lastKnownLocation
-            if (location != null) {
-                mapLibreMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(location.latitude, location.longitude), 15.0))
-            } else if (isAdded) {
-                Toast.makeText(requireContext(), "User location not available yet.", Toast.LENGTH_SHORT).show()
+    /**
+     * 🚀 3D BUILDINGS LAYER
+     * Adds height to buildings when zoomed in (Level 15+)
+     */
+    private fun enable3DBuildings(style: Style) {
+        try {
+            // MapTiler's standard building layer is often named 'building'
+            val fillExtrusionLayer = FillExtrusionLayer("3d-buildings", "composite")
+            fillExtrusionLayer.sourceLayer = "building"
+            fillExtrusionLayer.minZoom = 15f
+
+            fillExtrusionLayer.setProperties(
+                PropertyFactory.fillExtrusionColor(Color.parseColor("#aaaaaa")),
+                PropertyFactory.fillExtrusionHeight(
+                    Expression.interpolate(
+                        Expression.linear(),
+                        Expression.zoom(),
+                        Expression.stop(15, 0f),
+                        Expression.stop(16, Expression.get("render_height")) // MapTiler uses 'render_height' often
+                    )
+                ),
+                PropertyFactory.fillExtrusionBase(Expression.get("render_min_height")),
+                PropertyFactory.fillExtrusionOpacity(0.9f)
+            )
+
+            // Attempt to place it below labels
+            // If "airport-label" doesn't exist, we fall back to adding it on top
+            if (style.getLayer("airport-label") != null) {
+                style.addLayerBelow(fillExtrusionLayer, "airport-label")
+            } else {
+                style.addLayer(fillExtrusionLayer)
             }
+        } catch (e: Exception) {
+            Log.e("MapFragment", "Could not add 3D buildings (Layer might differ in MapTiler): ${e.message}")
         }
+    }
+
+    /**
+     * 🚀 LAUNCH GOOGLE MAPS NAVIGATION
+     */
+    private fun launchGoogleMapsNavigation(destinationLat: Double, destinationLng: Double) {
+        val gmmIntentUri = Uri.parse("google.navigation:q=$destinationLat,$destinationLng&mode=d")
+        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+        mapIntent.setPackage("com.google.android.apps.maps")
+
+        try {
+            startActivity(mapIntent)
+        } catch (e: Exception) {
+            val browserUri = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$destinationLat,$destinationLng")
+            val browserIntent = Intent(Intent.ACTION_VIEW, browserUri)
+            startActivity(browserIntent)
+        }
+    }
+
+    private fun toggleNavigationMode() {
+        if (isNavigationMode) {
+            disableNavigationMode()
+        } else {
+            enableNavigationMode()
+        }
+    }
+
+    private fun enableNavigationMode() {
+        val locationComponent = mapLibreMap?.locationComponent ?: return
+        if (!locationComponent.isLocationComponentEnabled) return
+
+        // 1. Navigation View (Compass Tracking)
+        locationComponent.cameraMode = CameraMode.TRACKING_COMPASS
+        locationComponent.renderMode = RenderMode.COMPASS
+
+        // 2. 3D Tilt + Zoom In
+        val lastLocation = locationComponent.lastKnownLocation
+        val target = if (lastLocation != null) LatLng(lastLocation.latitude, lastLocation.longitude) else mapLibreMap?.cameraPosition?.target
+
+        if (target != null) {
+            val navPosition = CameraPosition.Builder()
+                .target(target)
+                .zoom(17.0)
+                .tilt(60.0)
+                .build()
+
+            mapLibreMap?.animateCamera(CameraUpdateFactory.newCameraPosition(navPosition), 1500)
+            isNavigationMode = true
+            Toast.makeText(context, "Navigation Mode: ON", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun disableNavigationMode() {
+        val locationComponent = mapLibreMap?.locationComponent ?: return
+
+        // 1. Reset Tracking
+        locationComponent.cameraMode = CameraMode.TRACKING
+        locationComponent.renderMode = RenderMode.NORMAL
+
+        // 2. Reset Camera (Flat)
+        val flatPosition = CameraPosition.Builder()
+            .target(mapLibreMap?.cameraPosition?.target)
+            .zoom(15.0)
+            .tilt(0.0)
+            .bearing(0.0)
+            .build()
+
+        mapLibreMap?.animateCamera(CameraUpdateFactory.newCameraPosition(flatPosition), 1000)
+        isNavigationMode = false
     }
 
     private fun handleMapTap(latLng: LatLng) {
         tempMarker?.let { mapLibreMap?.removeMarker(it) }
-        tempMarker = mapLibreMap?.addMarker(MarkerOptions().position(latLng).title("Tapped Location"))
-        mapLibreMap?.animateCamera(CameraUpdateFactory.newLatLng(latLng), 750)
+        tempMarker = mapLibreMap?.addMarker(MarkerOptions().position(latLng).title("Pinned Location"))
+        mapLibreMap?.animateCamera(CameraUpdateFactory.newLatLng(latLng), 500)
     }
 
     @SuppressLint("MissingPermission")
-    private fun enableUserLocation(loadedMapStyle: Style) {
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            Log.d("MapFragment", "Location permission is granted.")
+    private fun enableUserLocation(style: Style) {
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            locationViewModel.onPermissionDenied()
+            Toast.makeText(requireContext(), "Location permission not granted", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-            val locationComponent = mapLibreMap?.locationComponent
-            val options = LocationComponentOptions.builder(requireContext()).build()
-            val activationOptions = LocationComponentActivationOptions.builder(requireContext(), loadedMapStyle)
-                .locationComponentOptions(options)
+        try {
+            val locationOptions = LocationComponentOptions.builder(requireContext())
+                .accuracyAlpha(0.3f)
+                .accuracyColor(0xFF4CAF50.toInt())
                 .build()
 
-            locationComponent?.activateLocationComponent(activationOptions)
-            locationComponent?.isLocationComponentEnabled = true
-            locationComponent?.cameraMode = CameraMode.TRACKING
-            locationComponent?.renderMode = RenderMode.COMPASS
+            val activationOptions = LocationComponentActivationOptions.builder(requireContext(), style)
+                .locationComponentOptions(locationOptions)
+                .useDefaultLocationEngine(true)
+                .build()
 
-            locationEngine = locationComponent?.locationEngine
-            val request = LocationEngineRequest.Builder(10000L) // 10 seconds
+            val locationComponent = mapLibreMap?.locationComponent ?: return
+            locationComponent.activateLocationComponent(activationOptions)
+            locationComponent.isLocationComponentEnabled = true
+
+            // Default: Simple tracking
+            locationComponent.cameraMode = CameraMode.TRACKING
+            locationComponent.renderMode = RenderMode.COMPASS
+
+            locationEngine = locationComponent.locationEngine
+            val request = LocationEngineRequest.Builder(5000L)
                 .setPriority(LocationEngineRequest.PRIORITY_HIGH_ACCURACY)
+                .setMaxWaitTime(10000L)
                 .build()
 
-            locationEngine?.requestLocationUpdates(request, locationEngineCallback, null)
-            Log.d("MapFragment", "Location updates have been requested from the LocationEngine.")
+            locationEngine?.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
 
-        } else {
-             Log.d("MapFragment", "Location permission not granted, requesting it.")
-             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            Log.d("MapFragment", "Location component enabled successfully")
+
+        } catch (e: Exception) {
+            locationViewModel.onLocationError("Failed to enable location: ${e.message}")
+            Log.e("MapFragment", "Location error", e)
         }
     }
 
-    private fun loadSosMarkers(style: Style) {
+    private fun loadSosMarkers() {
         if (!isAdded) return
-        val sosIcon = IconFactory.getInstance(requireContext()).fromBitmap(bitmapFromVector(requireContext(), R.drawable.ic_location))
 
-        db.collection("sos_sessions").whereEqualTo("active", true).get()
+        val icon = IconFactory.getInstance(requireContext())
+            .fromBitmap(bitmapFromVector(requireContext(), R.drawable.ic_location))
+
+        db.collection("sos_sessions")
+            .whereEqualTo("active", true)
+            .get()
             .addOnSuccessListener { documents ->
-                if (!isAdded) return@addOnSuccessListener
-                for (document in documents) {
-                    val locations = document.get("locations") as? List<Map<String, Any>>
-                    val lastLocation = locations?.lastOrNull()?.get("location") as? GeoPoint
-                    val title = document.getString("userId") ?: "SOS"
-                    if (lastLocation != null) {
+                for (doc in documents) {
+                    val locations = doc.get("locations") as? List<Map<String, Any>>
+                    val lastLocationData = locations?.lastOrNull()?.get("location")
+                    if (lastLocationData is GeoPoint) {
                         mapLibreMap?.addMarker(
                             MarkerOptions()
-                                .position(LatLng(lastLocation.latitude, lastLocation.longitude))
-                                .title(title)
-                                .icon(sosIcon)
+                                .position(LatLng(lastLocationData.latitude, lastLocationData.longitude))
+                                .title("SOS")
+                                .icon(icon)
                         )
                     }
                 }
             }
-            .addOnFailureListener { exception ->
-                if (isAdded) {
-                    Log.e("MapFragment", "Failed to load SOS markers", exception)
-                }
-            }
+            .addOnFailureListener { Log.e("MapFragment", "Failed to load SOS markers", it) }
     }
 
     private fun bitmapFromVector(context: Context, vectorResId: Int): Bitmap {
-        val vectorDrawable: Drawable = ContextCompat.getDrawable(context, vectorResId)!!
-        vectorDrawable.setBounds(0, 0, vectorDrawable.intrinsicWidth, vectorDrawable.intrinsicHeight)
-        val bitmap: Bitmap = Bitmap.createBitmap(vectorDrawable.intrinsicWidth, vectorDrawable.intrinsicHeight, Bitmap.Config.ARGB_8888)
+        val drawable: Drawable = ContextCompat.getDrawable(context, vectorResId)!!
+        drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+        val bitmap = Bitmap.createBitmap(drawable.intrinsicWidth, drawable.intrinsicHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        vectorDrawable.draw(canvas)
+        drawable.draw(canvas)
         return bitmap
     }
 
     override fun onStart() { super.onStart(); mapView.onStart() }
     override fun onResume() { super.onResume(); mapView.onResume() }
     override fun onPause() { super.onPause(); mapView.onPause() }
-    override fun onStop() { super.onStop(); mapView.onStop() }
+    override fun onStop() {
+        super.onStop()
+        mapView.onStop()
+        locationEngine?.removeLocationUpdates(locationCallback)
+    }
     override fun onLowMemory() { super.onLowMemory(); mapView.onLowMemory() }
-    
+
     override fun onDestroyView() {
-        locationEngine?.removeLocationUpdates(locationEngineCallback)
+        locationEngine?.removeLocationUpdates(locationCallback)
         mapView.onDestroy()
-        mapLibreMap?.removeOnMapClickListener { true }
         _binding = null
         super.onDestroyView()
     }

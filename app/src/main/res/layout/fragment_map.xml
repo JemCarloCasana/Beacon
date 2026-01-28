@@ -1,15 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+    android:layout_height="match_parent">
 
     <org.maplibre.android.maps.MapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- In res/layout/fragment_map.xml, inside the FrameLayout or ConstraintLayout -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btn_recenter"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="88dp"
+        android:src="@android:drawable/ic_menu_mylocation"
+        app:backgroundTint="@android:color/white"
+        app:tint="@android:color/black"
+        android:contentDescription="Toggle Navigation Mode" />
+
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/sos_button"
         android:layout_width="wrap_content"
@@ -17,8 +28,8 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
         android:src="@android:drawable/ic_dialog_alert"
+        app:backgroundTint="#F44336"
         app:tint="@android:color/white"
         android:contentDescription="SOS" />
-
 
 </FrameLayout>

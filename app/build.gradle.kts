@@ -16,67 +16,71 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Correctly read the key from gradle.properties and create the BuildConfig field
+        val mapTilerApiKey = project.findProperty("MAPTILER_API_KEY") as? String ?: "MISSING_KEY"
+        buildConfigField("String", "MAPTILER_API_KEY", "\"$mapTilerApiKey\"")
     }
 
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+    // 👇 ADD THIS BLOCK
+    buildFeatures {
+        viewBinding = true  // You likely already have this
+        buildConfig = true  // <--- ADD THIS LINE TO FIX THE ERROR
+        buildTypes {
+            release {
+                isMinifyEnabled = false
+                proguardFiles(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "proguard-rules.pro"
+                )
+            }
+        }
+
+        compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_11
+            targetCompatibility = JavaVersion.VERSION_11
+        }
+
+        kotlinOptions {
+            jvmTarget = "11"
+        }
+
+        buildFeatures {
+            viewBinding = true
         }
     }
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+    dependencies {
+        // ================= CORE =================
+        implementation("androidx.core:core-ktx:1.12.0")
+        implementation("androidx.appcompat:appcompat:1.7.0")
+        implementation("androidx.activity:activity-ktx:1.8.2")
+        implementation("androidx.fragment:fragment-ktx:1.8.2")
+
+        // ================= MATERIAL =================
+        implementation("com.google.android.material:material:1.12.0")
+
+        // ================= LIFECYCLE =================
+        implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2")
+        implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.6.2")
+
+        // ================= MAPLIBRE =================
+        implementation("org.maplibre.gl:android-sdk:12.3.1")
+
+        // ================= FIREBASE =================
+        implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+        implementation("com.google.firebase:firebase-analytics")
+        implementation("com.google.firebase:firebase-auth-ktx")
+        implementation("com.google.firebase:firebase-firestore-ktx")
+        implementation("com.google.firebase:firebase-storage")
+        implementation("com.google.firebase:firebase-appcheck-debug")
+
+        // REQUIRED for LocationServices, FusedLocation, and Priority
+        implementation("com.google.android.gms:play-services-location:21.0.1")
+
+        // ================= TESTING =================
+        testImplementation("junit:junit:4.13.2")
+        androidTestImplementation("androidx.test.ext:junit:1.1.6")
+        androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     }
-
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-
-    buildFeatures {
-        viewBinding = true
-    }
-}
-
-dependencies {
-    // Core
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.activity:activity-ktx:1.8.2")
-    implementation("androidx.fragment:fragment-ktx:1.8.2")
-
-    // Material 3
-    implementation("com.google.android.material:material:1.12.0")
-
-    // Lifecycle
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2")
-    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.6.2")
-
-    // Maplibre
-    implementation("org.maplibre.gl:android-sdk:12.3.1")
-
-    // ========= START: FIREBASE DEPENDENCIES =========
-
-    // Import the Firebase BoM (Bill of Materials)
-    // This will manage the versions of all other Firebase libraries.
-    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
-
-    // Add the Firebase libraries you want to use (without versions)
-    implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-auth-ktx")
-    implementation("com.google.firebase:firebase-firestore-ktx")
-    implementation("com.google.firebase:firebase-storage")
-    implementation("com.google.firebase:firebase-appcheck-debug")
-
-    // =========  END: FIREBASE DEPENDENCIES  =========
-
-
-    // Testing
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.6")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
