@@ -1,4 +1,4 @@
-package com.example.beacon
+package com.example.beacon.viewmodel
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData

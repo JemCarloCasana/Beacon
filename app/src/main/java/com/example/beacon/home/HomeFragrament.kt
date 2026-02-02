@@ -7,8 +7,6 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
-
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -17,22 +15,32 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import com.example.beacon.ActivityViewModel
+import androidx.navigation.fragment.findNavController
 import com.example.beacon.R
 import com.example.beacon.databinding.FragmentHomeBinding
-import com.example.beacon.sos.SosViewModel
+import com.example.beacon.sos.SosStateMachine
+import com.example.beacon.sos.SosEvent
+import com.example.beacon.sos.SosState
+import com.example.beacon.viewmodel.ActivityViewModel
 import com.example.beacon.viewmodel.LocationStatusViewModel
+import com.example.beacon.viewmodel.LocationViewModel
+import com.example.beacon.viewmodel.SosViewModel
 
 class HomeFragment : Fragment() {
 
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
 
+    // ViewModels
     private val activityViewModel: ActivityViewModel by activityViewModels()
     private val sosViewModel: SosViewModel by activityViewModels()
+
+    // We use BOTH viewmodels now (Data + Status)
+    private val locationViewModel: LocationViewModel by activityViewModels()
     private val locationStatusViewModel: LocationStatusViewModel by activityViewModels()
 
-
+    // SOS State Machine - replaces old ObjectAnimator approach
+    private lateinit var sosStateMachine: SosStateMachine
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -46,77 +54,186 @@ class HomeFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        setupSosStateMachine()
         setupSosButton()
         setupCheckInButton()
         setupContactsButton()
-        setupLogoutButton()
+
         observeViewModels()
-        observeLocationStatus()
+
+        // Start GPS automatically
+        checkPermissionsAndStartGps()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reset state machine when fragment resumes (user navigates back)
+        // This ensures clean state regardless of previous navigation
+        if (::sosStateMachine.isInitialized) {
+            sosStateMachine.handleEvent(SosEvent.SosDeactivated)
+        }
+        
+        // Re-enable SOS button touch after returning from navigation
+        setupSosButton()
+    }
+
+    private fun checkPermissionsAndStartGps() {
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED) {
+            locationViewModel.onPermissionGranted() // Notify VM
+        } else {
+            locationViewModel.onPermissionDenied() // Notify VM
+            locationStatusViewModel.setLocationDisabled()
+        }
     }
 
     private fun observeViewModels() {
-        activityViewModel.sosState.observe(viewLifecycleOwner) { state ->
-            if (state == ActivityViewModel.SosState.COUNTDOWN) {
-                binding.tvInstruction.text = "Hold to trigger SOS..."
-            }
-        }
-
-        activityViewModel.sosTriggered.observe(viewLifecycleOwner) { event ->
-            event.getContentIfNotHandled()?.let {
-                sosViewModel.startSos()
-            }
-        }
-
+        // 1. SOS State Machine - replaces old state management
+        observeSosStateMachine()
+        
+        // 2. SOS Active State from SosViewModel - still needed for background changes
         sosViewModel.isSosActive.observe(viewLifecycleOwner) { isActive ->
             if (isActive) {
-                binding.tvInstruction.text = "SOS ACTIVE\n(Long press to cancel)"
+                binding.tvInstruction.text = "SOS ACTIVE"
+                // Use visual indication for active state - change background color
+                binding.sosContainer.setBackgroundResource(R.drawable.circle_sos_active_gradient)
+                binding.sosProgressRing.visibility = View.INVISIBLE
             } else {
-                binding.tvInstruction.text = "Press in case of emergency"
+                // Reset to normal background when not active
+                binding.sosContainer.setBackgroundResource(R.drawable.circle_sos_gradient)
             }
         }
-    }
 
-private fun observeLocationStatus() {
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            locationStatusViewModel.setLocationDisabled()
-            return
+        // 3. BRIDGE LOCATION DATA (Critical Logic)
+        // We get raw data from LocationViewModel...
+        locationViewModel.locationData.observe(viewLifecycleOwner) { location ->
+            if (location != null) {
+                // ...and feed it to the other ViewModels
+                locationStatusViewModel.onLocationAcquired() // Update Green Card
+                sosViewModel.updateCurrentLocation(location) // Update SOS
+                activityViewModel.updateUserLocation(location.latitude, location.longitude) // Update DB
+            }
         }
 
-        // Observe state changes for better UX
+        // Listen for errors from the GPS engine
+        locationViewModel.errorEvent.observe(viewLifecycleOwner) { errorMsg ->
+            locationStatusViewModel.onLocationError(errorMsg)
+        }
+
+        // 4. OBSERVE LOCATION STATUS (UI Updates)
+        // We get the COLORS/TEXT from LocationStatusViewModel
         locationStatusViewModel.locationState.observe(viewLifecycleOwner) { state ->
+            val lastTime = locationStatusViewModel.lastUpdateTime.value ?: 0L
+
             when (state) {
                 LocationStatusViewModel.LocationState.ACQUIRED -> {
-                    val lastUpdate = locationStatusViewModel.lastUpdateTime.value ?: System.currentTimeMillis()
-                    updateLocationCard(true, lastUpdate, false, Color.WHITE)
+                    updateLocationCard(true, lastTime, false, Color.WHITE)
                 }
                 LocationStatusViewModel.LocationState.SEARCHING -> {
-                    updateLocationCard(false, 0L, false, Color.parseColor("#FFF3E0"))  // Orange
-                }
-                LocationStatusViewModel.LocationState.STALE -> {
-                    val lastUpdate = locationStatusViewModel.lastUpdateTime.value ?: 0L
-                    updateLocationCard(false, lastUpdate, false, Color.parseColor("#FFEBEE"))  // Light Red
-                }
-                LocationStatusViewModel.LocationState.ERROR -> {
-                    updateLocationCard(false, 0L, true, Color.parseColor("#FFEBEE"))  // Light Red
+                    updateLocationCard(false, 0L, false, Color.parseColor("#FFF3E0"))
                 }
                 LocationStatusViewModel.LocationState.DISABLED -> {
                     updateLocationCard(false, 0L, true, Color.WHITE)
                 }
-            }
-        }
-        
-        // Observe error messages
-        locationStatusViewModel.errorMessage.observe(viewLifecycleOwner) { errorMsg ->
-            if (errorMsg != null) {
-                Log.w("HomeFragment", "Location error: $errorMsg")
+                else -> { // ERROR or unknown
+                    updateLocationCard(false, 0L, true, Color.parseColor("#FFEBEE"))
+                }
             }
         }
     }
 
-    private fun updateLocationCard(isActive: Boolean, lastUpdateTime: Long, isDisabled: Boolean, backgroundColor: Int = Color.WHITE) {
-        // Set background color
-        binding.locationCard.setBackgroundColor(backgroundColor)
+    /**
+     * Observe SOS State Machine for reliable state management
+     */
+    private fun observeSosStateMachine() {
+        // Observe state changes
+        sosStateMachine.state.observe(viewLifecycleOwner) { state ->
+            when (state) {
+                is SosState.Idle -> {
+                    binding.sosProgressRing.visibility = View.INVISIBLE
+                    binding.sosProgressRing.progress = 0
+                    // Only update text if SOS is not active (to avoid conflict with SosViewModel observer)
+                    if (sosViewModel.isSosActive.value != true) {
+                        binding.tvInstruction.text = "Press in case of emergency"
+                    }
+                }
+                is SosState.CountingDown -> {
+                    binding.sosProgressRing.visibility = View.VISIBLE
+                    binding.tvInstruction.text = "Hold to trigger SOS..."
+                }
+                is SosState.Activated -> {
+                    binding.sosProgressRing.visibility = View.INVISIBLE
+                    binding.sosProgressRing.progress = 0
+                }
+                is SosState.Cancelled -> {
+                    binding.sosProgressRing.visibility = View.INVISIBLE
+                    binding.sosProgressRing.progress = 0
+                }
+            }
+        }
         
+        // Observe progress updates
+        sosStateMachine.progress.observe(viewLifecycleOwner) { progress ->
+            binding.sosProgressRing.progress = progress
+        }
+    }
+
+    /**
+     * Setup SOS State Machine - replaces old ObjectAnimator approach
+     */
+    private fun setupSosStateMachine() {
+        sosStateMachine = SosStateMachine()
+        
+        // Set callback for SOS activation
+        sosStateMachine.setOnSosActivatedCallback {
+            triggerSosActivation()
+        }
+        
+        // Initialize progress bar for state machine (0-100 range instead of 0-3000)
+        binding.sosProgressRing.max = 100
+        binding.sosProgressRing.progress = 0
+        binding.sosProgressRing.isIndeterminate = false
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupSosButton() {
+        binding.sosContainer.setOnTouchListener { _, event ->
+            // If already active, just navigate
+            if (sosViewModel.isSosActive.value == true) {
+                findNavController().navigate(R.id.action_homeFragment_to_sosActivationFragment)
+                return@setOnTouchListener false
+            }
+
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    // Start SOS countdown using state machine
+                    sosStateMachine.handleEvent(SosEvent.PressStarted)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    // Stop SOS countdown using state machine
+                    sosStateMachine.handleEvent(SosEvent.PressReleased)
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun triggerSosActivation() {
+        // Disable touch during activation to prevent multiple triggers
+        binding.sosContainer.setOnTouchListener(null)
+        
+        // Reset state machine to clean state
+        sosStateMachine.reset()
+
+        sosViewModel.startSos()
+        findNavController().navigate(R.id.action_homeFragment_to_sosActivationFragment)
+    }
+
+    private fun updateLocationCard(isActive: Boolean, lastUpdateTime: Long, isDisabled: Boolean, backgroundColor: Int = Color.WHITE) {
+        binding.locationCard.setCardBackgroundColor(backgroundColor)
+
         when {
             isDisabled -> {
                 binding.tvLocationTitle.text = "Location Disabled"
@@ -141,10 +258,9 @@ private fun observeLocationStatus() {
 
     private fun formatLastUpdateTime(timestamp: Long): String {
         if (timestamp == 0L) return "No updates yet"
-        
         val now = System.currentTimeMillis()
         val diff = now - timestamp
-        
+
         return when {
             diff < 60_000 -> "Last update: Just now"
             diff < 3600_000 -> "Last update: ${diff / 60_000} min ago"
@@ -157,39 +273,6 @@ private fun observeLocationStatus() {
         }
     }
 
-
-
-    @SuppressLint("ClickableViewAccessibility")
-    private fun setupSosButton() {
-        binding.sosContainer.setOnTouchListener { _, event ->
-            if (sosViewModel.isSosActive.value == true) {
-                return@setOnTouchListener false
-            }
-
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    activityViewModel.startSosCountdown()
-                    true
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    activityViewModel.cancelSosCountdown()
-                    true
-                }
-                else -> false
-            }
-        }
-
-        binding.sosContainer.setOnLongClickListener {
-            if (sosViewModel.isSosActive.value == true) {
-                sosViewModel.stopSos()
-                Toast.makeText(requireContext(), "SOS STOPPED", Toast.LENGTH_SHORT).show()
-                true
-            } else {
-                false
-            }
-        }
-    }
-
     private fun setupCheckInButton() {
         binding.btnCheckIn.setOnClickListener {
             Toast.makeText(requireContext(), "Check-in successful", Toast.LENGTH_SHORT).show()
@@ -198,28 +281,22 @@ private fun observeLocationStatus() {
 
     private fun setupContactsButton() {
         binding.btnContacts.setOnClickListener {
-            val contactNumber = "09171234567" // Example number
+            val contactNumber = "09171234567"
             val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$contactNumber"))
             startActivity(intent)
         }
     }
 
-    private fun setupLogoutButton() {
-        binding.btnLogout.setOnClickListener {
-            activityViewModel.logout()
-        }
-    }
-
-override fun onResume() {
-        super.onResume()
-    }
-
-    override fun onPause() {
-        super.onPause()
-    }
-
     override fun onDestroyView() {
         super.onDestroyView()
+        
+        // Clean up state machine
+        if (::sosStateMachine.isInitialized) {
+            sosStateMachine.cleanup()
+        }
+        
+        // Clean up location updates
+        locationViewModel.stopLocationUpdates()
         _binding = null
     }
 }

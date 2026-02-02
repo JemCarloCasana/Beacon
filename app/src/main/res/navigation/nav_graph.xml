@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/nav_home"> <fragment
+    android:id="@+id/nav_home"
+    android:name="com.example.beacon.home.HomeFragment"
+    android:label="Home"
+    tools:layout="@layout/fragment_home">
+
+    <action
+        android:id="@+id/action_homeFragment_to_sosActivationFragment"
+        app:destination="@id/sosActivationFragment"
+        app:enterAnim="@anim/nav_default_enter_anim"
+        app:exitAnim="@anim/nav_default_exit_anim"
+        app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+        app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+</fragment>
+
+    <fragment
+        android:id="@+id/nav_map"
+        android:name="com.example.beacon.map.MapFragment"
+        android:label="Map"
+        tools:layout="@layout/fragment_map" />
+
+    <fragment
+        android:id="@+id/nav_profile"
+        android:name="com.example.beacon.profile.ProfileFragment"
+        android:label="Profile"
+        tools:layout="@layout/fragment_profile" />
+
+    <fragment
+        android:id="@+id/nav_report"
+        android:name="com.example.beacon.report.ReportFragment"
+        android:label="Report" />
+
+    <fragment
+        android:id="@+id/nav_alerts"
+        android:name="com.example.beacon.alerts.AlertsFragment"
+        android:label="Alerts" />
+
+    <fragment
+        android:id="@+id/sosActivationFragment"
+        android:name="com.example.beacon.sos.SosActivationFragment"
+        android:label="SOS Sent"
+        tools:layout="@layout/fragment_sos_activation">
+
+        <action
+            android:id="@+id/action_activation_to_context"
+            app:destination="@id/sosContextFragment"
+            app:popUpTo="@id/nav_home"
+            app:popUpToInclusive="false" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/sosContextFragment"
+        android:name="com.example.beacon.sos.SosContextFragment"
+        android:label="Select Context"
+        tools:layout="@layout/fragment_sos_context">
+        <action
+            android:id="@+id/action_context_to_tracking"
+            app:destination="@id/trackingFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/trackingFragment"
+        android:name="com.example.beacon.sos.TrackingFragment"
+        android:label="Tracking"
+        tools:layout="@layout/fragment_tracking" />
+
+</navigation>

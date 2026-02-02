@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:color="#16A34A" android:state_checked="true"/> <!-- Green when selected -->
-    <item android:color="#64748B"/> <!-- Gray when not selected -->
+    <item android:color="#5FB2B2" android:state_checked="true"/>
+
+    <item android:color="#90A4AE"/>
 </selector>

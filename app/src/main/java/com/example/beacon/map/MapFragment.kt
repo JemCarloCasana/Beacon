@@ -1,4 +1,4 @@
-package com.example.beacon
+package com.example.beacon.map
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -9,11 +9,11 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.Drawable
-import android.location.Location
 import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
 import android.util.Log
+import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -22,14 +22,15 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import com.example.beacon.BuildConfig
+import com.example.beacon.R
 import com.example.beacon.databinding.FragmentMapBinding
-import com.example.beacon.sos.SosViewModel
+import com.example.beacon.viewmodel.ActivityViewModel
 import com.example.beacon.viewmodel.LocationStatusViewModel
 import com.example.beacon.viewmodel.LocationViewModel
+import com.example.beacon.viewmodel.SosViewModel
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-// MapLibre Imports
 import org.maplibre.android.annotations.IconFactory
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
@@ -105,7 +106,7 @@ class MapFragment : Fragment(), OnMapReadyCallback {
         // 1. Wire up the Navigation/Recenter Button
         binding.btnRecenter.setOnClickListener {
             toggleNavigationMode()
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
+            it.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
         }
 
         // 2. Wire up the SOS Button
@@ -229,7 +230,10 @@ class MapFragment : Fragment(), OnMapReadyCallback {
 
         // 2. 3D Tilt + Zoom In
         val lastLocation = locationComponent.lastKnownLocation
-        val target = if (lastLocation != null) LatLng(lastLocation.latitude, lastLocation.longitude) else mapLibreMap?.cameraPosition?.target
+        val target = if (lastLocation != null) LatLng(
+            lastLocation.latitude,
+            lastLocation.longitude
+        ) else mapLibreMap?.cameraPosition?.target
 
         if (target != null) {
             val navPosition = CameraPosition.Builder()
@@ -330,7 +334,12 @@ class MapFragment : Fragment(), OnMapReadyCallback {
                     if (lastLocationData is GeoPoint) {
                         mapLibreMap?.addMarker(
                             MarkerOptions()
-                                .position(LatLng(lastLocationData.latitude, lastLocationData.longitude))
+                                .position(
+                                    LatLng(
+                                        lastLocationData.latitude,
+                                        lastLocationData.longitude
+                                    )
+                                )
                                 .title("SOS")
                                 .icon(icon)
                         )

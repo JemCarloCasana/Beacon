@@ -6,43 +6,34 @@ import android.location.Location
 import android.os.Looper
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
-import com.example.beacon.ActivityViewModel
-import com.example.beacon.sos.SosViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 
-class LocationViewModel(
-    application: Application,
-    private val activityViewModel: ActivityViewModel,
-    private val sosViewModel: SosViewModel,
-    private val locationStatusViewModel: LocationStatusViewModel
-) : AndroidViewModel(application) {
+class LocationViewModel(application: Application) : AndroidViewModel(application) {
 
+    // === 1. LIVE DATA ===
+    private val _locationData = MutableLiveData<Location>()
+    val locationData: LiveData<Location> = _locationData
+
+    // Events to notify HomeFragment to update LocationStatusViewModel
+    private val _errorEvent = MutableLiveData<String>()
+    val errorEvent: LiveData<String> = _errorEvent
+
+    private val _permissionEvent = MutableLiveData<Boolean>() // true = granted, false = denied
+    val permissionEvent: LiveData<Boolean> = _permissionEvent
+
+    // === 2. GPS CONFIG ===
     private val fusedClient = LocationServices.getFusedLocationProviderClient(application)
-
     private val locationRequest = LocationRequest.Builder(
         Priority.PRIORITY_HIGH_ACCURACY,
-        5000L // every 5 seconds
+        5000L
     ).build()
 
-    // 1. Refactored Logic: Central place to handle ALL location updates
-    private fun processLocation(location: Location) {
-        try {
-            locationStatusViewModel.onLocationAcquired()
-            activityViewModel.updateUserLocation(location.latitude, location.longitude)
-            sosViewModel.updateCurrentLocation(location)
-
-            Log.d("LocationViewModel", "GPS Processed: ${location.latitude}, ${location.longitude}")
-        } catch (e: Exception) {
-            Log.e("LocationViewModel", "Error processing GPS", e)
-            onLocationError(e.message ?: "Unknown error")
-        }
-    }
-
-    // 2. The Internal Callback (FusedLocation)
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             result.lastLocation?.let { location ->
@@ -51,38 +42,45 @@ class LocationViewModel(
         }
     }
 
-    // 3. THE MISSING FUNCTION (Fixes your error)
-    // This allows MapFragment to pass location updates to this ViewModel manually
+    // === 3. METHODS CALLED BY MAP FRAGMENT ===
+    // These were "Unresolved" before. Now they exist!
+
     fun onLocationUpdate(location: Location) {
         processLocation(location)
     }
 
-    // 🚀 START REAL GPS
+    fun onLocationError(error: String) {
+        Log.e("LocationViewModel", "Location Error: $error")
+        _errorEvent.value = error
+    }
+
+    fun onPermissionDenied() {
+        _permissionEvent.value = false
+    }
+
+    fun onPermissionGranted() {
+        _permissionEvent.value = true
+        startLocationUpdates()
+    }
+
+    // === 4. INTERNAL LOGIC ===
+    private fun processLocation(location: Location) {
+        _locationData.value = location
+        Log.d("LocationViewModel", "GPS: ${location.latitude}, ${location.longitude}")
+    }
+
     @SuppressLint("MissingPermission")
     fun startLocationUpdates() {
-        fusedClient.requestLocationUpdates(
-            locationRequest,
-            callback,
-            Looper.getMainLooper()
-        )
-        Log.d("LocationViewModel", "Started GPS updates")
+        try {
+            fusedClient.requestLocationUpdates(locationRequest, callback, Looper.getMainLooper())
+        } catch (e: SecurityException) {
+            onPermissionDenied()
+        } catch (e: Exception) {
+            onLocationError(e.message ?: "Unknown GPS start error")
+        }
     }
 
     fun stopLocationUpdates() {
         fusedClient.removeLocationUpdates(callback)
-        Log.d("LocationViewModel", "Stopped GPS updates")
-    }
-
-    fun onLocationError(error: String) {
-        locationStatusViewModel.onLocationError(error)
-    }
-
-    fun onPermissionDenied() {
-        locationStatusViewModel.setLocationDisabled()
-    }
-
-    fun onPermissionGranted() {
-        locationStatusViewModel.setLocationSearching()
-        startLocationUpdates()
     }
 }

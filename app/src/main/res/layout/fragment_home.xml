@@ -1,11 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    HCI DESIGN PRINCIPLES APPLIED:
-    1. Visual Hierarchy: SOS button remains the focal point.
-    2. Feedback: 'Hold for 3 seconds' text is inside a pill shape.
-    3. Affordance: Buttons placed for thumb reach.
-    4. Safety Guardrail: Logout is at the bottom.
--->
 <RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -13,28 +6,36 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/gradient_background_safe"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     tools:context=".home.HomeFragment">
 
-    <!-- Scrollable content -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true"
         android:scrollbars="none"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:layout_above="@id/bottomNav">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:paddingBottom="24dp">
 
-            <!-- Header Section -->
             <RelativeLayout
                 android:id="@+id/headerLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="24dp">
+                android:paddingHorizontal="24dp"
+                android:paddingTop="32dp"
+                android:paddingBottom="16dp"
+                android:clipToPadding="false"
+                android:clipChildren="false">
 
                 <LinearLayout
                     android:layout_width="wrap_content"
@@ -57,35 +58,51 @@
                         android:fontFamily="sans-serif-black"
                         android:text="Stay safe, Student!"
                         android:textColor="#0F2D37"
-                        android:textSize="28sp"
+                        android:textSize="26sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
                 <ImageButton
                     android:id="@+id/btnProfileHeader"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
                     android:layout_alignParentEnd="true"
                     android:layout_centerVertical="true"
                     android:background="@drawable/circle_background_light"
                     android:contentDescription="View Profile"
+                    android:elevation="0dp"
+                    android:stateListAnimator="@null"
                     android:padding="12dp"
                     android:src="@drawable/ic_person"
                     app:tint="#475569" />
             </RelativeLayout>
 
-            <!-- SOS Button -->
             <FrameLayout
                 android:id="@+id/sosContainer"
-                android:layout_width="260dp"
-                android:layout_height="260dp"
+                android:layout_width="180dp"
+                android:layout_height="180dp"
                 android:layout_gravity="center"
-                android:layout_marginTop="24dp">
+                android:layout_marginTop="32dp"
+                android:elevation="8dp"
+                android:background="@drawable/circle_sos_gradient"
+                android:outlineProvider="background">
 
-                <View
+                <ProgressBar
+                    android:id="@+id/sosProgressRing"
+                    style="?android:attr/progressBarStyleHorizontal"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="@drawable/circle_sos_gradient" />
+                    android:layout_gravity="center"
+                    android:layout_margin="8dp"
+
+                    android:rotation="-90"
+
+                    android:max="3000"
+                    android:progress="0"
+
+                    android:indeterminate="false"
+                    android:progressDrawable="@drawable/circular_progress_bar"
+                    android:visibility="invisible" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -100,21 +117,22 @@
                         android:fontFamily="sans-serif-black"
                         android:text="SOS"
                         android:textColor="#FFFFFF"
-                        android:textSize="64sp" />
+                        android:textSize="48sp" />
 
                     <TextView
                         android:id="@+id/tvHoldInstruction"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="4dp"
                         android:background="@drawable/pill_transparent_white"
-                        android:paddingHorizontal="20dp"
-                        android:paddingVertical="8dp"
-                        android:text="Hold for 3 seconds"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="6dp"
+                        android:text="Hold"
                         android:textColor="#FFFFFF"
-                        android:textSize="14sp"
+                        android:textSize="13sp"
                         android:textStyle="bold" />
                 </LinearLayout>
+
             </FrameLayout>
 
             <TextView
@@ -122,12 +140,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="24dp"
                 android:text="Emergency? Tap and hold"
                 android:textColor="#7C9292"
-                android:textSize="16sp" />
+                android:textSize="15sp"
+                android:fontFamily="sans-serif-medium"/>
 
-            <!-- Action Buttons -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -145,6 +163,7 @@
                     android:textAllCaps="false"
                     android:textSize="18sp"
                     android:textStyle="bold"
+                    android:elevation="4dp"
                     app:cornerRadius="20dp"
                     app:icon="@drawable/ic_check_circle"
                     app:iconGravity="textStart"
@@ -160,17 +179,17 @@
                     android:backgroundTint="#F2C07D"
                     android:text="Emergency Contacts"
                     android:textAllCaps="false"
-                    android:textColor="#000000"
+                    android:textColor="#2D1B05"
                     android:textSize="18sp"
                     android:textStyle="bold"
+                    android:elevation="4dp"
                     app:cornerRadius="20dp"
                     app:icon="@drawable/ic_phone"
                     app:iconGravity="textStart"
                     app:iconPadding="12dp"
-                    app:iconTint="#000000" />
+                    app:iconTint="#2D1B05" />
             </LinearLayout>
 
-            <!-- Location Card -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/locationCard"
                 android:layout_width="match_parent"
@@ -185,12 +204,12 @@
                 <RelativeLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:padding="16dp">
+                    android:padding="20dp">
 
                     <View
                         android:id="@+id/vIndicatorLarge"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
                         android:layout_alignParentStart="true"
                         android:layout_centerVertical="true"
                         android:background="@drawable/circle_background_green" />
@@ -201,6 +220,7 @@
                         android:layout_centerVertical="true"
                         android:layout_marginStart="16dp"
                         android:layout_toEndOf="@id/vIndicatorLarge"
+                        android:layout_toStartOf="@id/status_indicator_small"
                         android:orientation="vertical">
 
                         <TextView
@@ -217,48 +237,21 @@
                             android:id="@+id/tvLocationSubtitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Sharing with 3 contacts"
+                            android:text="Sharing live with 3 contacts"
                             android:textColor="#64748B"
-                            android:textSize="14sp" />
+                            android:textSize="13sp"
+                            android:layout_marginTop="2dp"/>
                     </LinearLayout>
 
                     <View
                         android:id="@+id/status_indicator_small"
-                        android:layout_width="10dp"
-                        android:layout_height="10dp"
+                        android:layout_width="8dp"
+                        android:layout_height="8dp"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
                         android:background="@drawable/status_indicator_green" />
                 </RelativeLayout>
             </com.google.android.material.card.MaterialCardView>
-
-            <!-- Logout -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnLogout"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="24dp"
-                android:text="Logout"
-                android:textColor="#94A3B8"
-                app:icon="@drawable/ic_logout"
-                app:iconTint="#94A3B8" />
-
         </LinearLayout>
     </ScrollView>
-
-    <!-- Bottom Navigation -->
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/bottomNav"
-        android:layout_width="match_parent"
-        android:layout_height="72dp"
-        android:layout_alignParentBottom="true"
-        android:background="#FFFFFF"
-        app:elevation="16dp"
-        app:itemIconTint="@color/nav_item_selector"
-        app:itemTextColor="@color/nav_item_selector"
-        app:labelVisibilityMode="labeled"
-        app:menu="@menu/bottom_nav_menu" />
-
 </RelativeLayout>

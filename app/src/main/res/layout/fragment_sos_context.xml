@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    HCI DESIGN PRINCIPLES - EMERGENCY MODAL
+    1. Visual Reference: Based on image_39aca7.png.
+    2. Modal Context: Centered card on dimmed background to focus attention.
+    3. Urgency: Prominent countdown timer ("6sc") to indicate automatic action.
+    4. Alignment Fix: Using standard android drawables to ensure icons render and align text baselines.
+-->
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#99000000"
+    android:gravity="center"
+    android:padding="16dp">
+
+    <!-- Main Alert Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="8dp"
+        app:cardBackgroundColor="#FFFFFF"
+        app:cardCornerRadius="32dp"
+        app:cardElevation="8dp"
+        app:strokeWidth="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <!-- Close Button -->
+            <ImageView
+                android:id="@+id/btnClose"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="end"
+                android:src="@drawable/ic_close"
+                app:tint="#94A3B8"
+                android:contentDescription="Close Alert" />
+
+            <!-- Header Icon (Red Glow) -->
+            <FrameLayout
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp">
+
+                <!-- Outer Glow Ring -->
+
+
+                <!-- Inner Red Circle -->
+                <View
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/circle_background_red"/>
+
+                <!-- Siren Icon -->
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_alert"
+                    app:tint="#FFFFFF" />
+            </FrameLayout>
+
+            <!-- Title & Subtitle -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="16dp"
+                android:text="Emergency Help!"
+                android:textColor="#1F2937"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-black"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="Your GPS location and emergency contact will be sent.\nTracking will start automatically."
+                android:textColor="#6B7280"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"/>
+
+            <!-- Countdown Timer -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="24dp"
+                android:orientation="horizontal"
+                android:gravity="bottom">
+
+                <TextView
+                    android:id="@+id/tvCountdown"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="6"
+                    android:textColor="#FF5722"
+                    android:textSize="56sp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="sc"
+                    android:textColor="#FF5722"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginBottom="8dp"/>
+            </LinearLayout>
+
+            <!-- Grid Options -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Row 1 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <!-- Medical -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnMedical"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="100dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:text="Medical"
+                        android:textColor="#1F2937"
+                        android:textAllCaps="false"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        app:strokeColor="#E5E7EB"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="16dp"
+                        app:icon="@drawable/ic_emergency"
+                        app:iconGravity="top"
+                        app:iconPadding="8dp"
+                        app:iconSize="32dp"
+                        app:iconTint="#4B5563" />
+
+                    <!-- Fire -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnFire"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="100dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:text="Fire"
+                        android:textColor="#1F2937"
+                        android:textAllCaps="false"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        app:strokeColor="#E5E7EB"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="16dp"
+                        app:icon="@drawable/ic_fire"
+                        app:iconGravity="top"
+                        app:iconPadding="8dp"
+                        app:iconSize="32dp"
+                        app:iconTint="#4B5563" />
+                </LinearLayout>
+
+                <!-- Row 2 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <!-- Violence / Crime -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnViolence"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="100dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:text="Violence"
+                        android:textColor="#1F2937"
+                        android:textAllCaps="false"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        app:strokeColor="#E5E7EB"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="16dp"
+                        app:icon="@drawable/ic_warning"
+                        app:iconGravity="top"
+                        app:iconPadding="8dp"
+                        app:iconSize="32dp"
+                        app:iconTint="#4B5563" />
+
+                    <!-- I Don't Know -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnUnsure"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="100dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:text="I Don't Know"
+                        android:textColor="#1F2937"
+                        android:textAllCaps="false"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        app:strokeColor="#E5E7EB"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="16dp"
+                        app:icon="@drawable/ic_notsure"
+                        app:iconGravity="top"
+                        app:iconPadding="8dp"
+                        app:iconSize="32dp"
+                        app:iconTint="#4B5563" />
+                </LinearLayout>
+            </LinearLayout>
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</RelativeLayout>

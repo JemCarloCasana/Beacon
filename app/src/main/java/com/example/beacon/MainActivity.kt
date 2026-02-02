@@ -1,39 +1,27 @@
 package com.example.beacon
 
 import android.Manifest
-import android.app.Application
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.ui.setupWithNavController
 import com.example.beacon.auth.LoginActivity
 import com.example.beacon.databinding.ActivityMainBinding
-import com.example.beacon.home.HomeFragment
-import com.example.beacon.sos.SosViewModel
-import com.example.beacon.viewmodel.LocationStatusViewModel
+import com.example.beacon.viewmodel.ActivityViewModel
 import com.example.beacon.viewmodel.LocationViewModel
+import com.example.beacon.viewmodel.SosViewModel
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+
     private val activityViewModel: ActivityViewModel by viewModels()
     private val sosViewModel: SosViewModel by viewModels()
-    private val locationStatusViewModel: LocationStatusViewModel by viewModels()
+    private val locationViewModel: LocationViewModel by viewModels()
 
-    // Initialize LocationViewModel with dependencies using a custom factory
-    private val locationViewModel: LocationViewModel by viewModels {
-        LocationViewModelFactory(
-            application,
-            activityViewModel,
-            sosViewModel,
-            locationStatusViewModel
-        )
-    }
-
-    // Permission launcher for the Activity
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
@@ -49,73 +37,31 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Start location permission flow immediately after login/create
         requestLocationPermissions()
 
-        // Observe navigation event
         activityViewModel.navigateToLogin.observe(this) { event ->
-            event.getContentIfNotHandled()?.let { // Only proceed if the event has not been handled
+            event.getContentIfNotHandled()?.let {
                 startActivity(Intent(this, LoginActivity::class.java))
                 finish()
             }
         }
 
-        // Load HomeFragment by default
-        if (savedInstanceState == null) {
-            replaceFragment(HomeFragment())
-        }
+        // 1. SETUP NAVIGATION COMPONENT
+        // This finds the NavHostFragment in your XML
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+        val navController = navHostFragment.navController
 
-        // Setup BottomNavigation actions
-        setupBottomNavigation()
+        // 2. CONNECT BOTTOM NAV TO CONTROLLER
+        // This handles fragment switching automatically based on IDs!
+        binding.bottomNav.setupWithNavController(navController)
+
+        // ⚠️ DELETED: The manual setOnItemSelectedListener block.
+        // We removed the code that forced a logout here.
+        // Now, clicking "Profile" will simply navigate to the ProfileFragment.
     }
 
-    private fun setupBottomNavigation() {
-        binding.bottomNav.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_home -> {
-                    replaceFragment(HomeFragment())
-                    true
-                }
-                R.id.nav_map -> {
-                    replaceFragment(MapFragment())
-                    true
-                }
-                R.id.nav_profile -> {
-                    activityViewModel.logout() // Call logout from the ViewModel
-                    true
-                }
-                else -> false
-            }
-        }
-    }
-
-    private fun replaceFragment(fragment: androidx.fragment.app.Fragment) {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragmentContainer, fragment)
-            .commit()
-    }
-
-    // Note: LocationComponent now handles its own lifecycle internally
-    // No need to manually start/stop location engine
-
-    // Method to request permissions
     private fun requestLocationPermissions() {
         requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-    }
-}
-
-// Custom Factory for LocationViewModel
-class LocationViewModelFactory(
-    private val application: Application,
-    private val activityViewModel: ActivityViewModel,
-    private val sosViewModel: SosViewModel,
-    private val locationStatusViewModel: LocationStatusViewModel
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(LocationViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return LocationViewModel(application, activityViewModel, sosViewModel, locationStatusViewModel) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
