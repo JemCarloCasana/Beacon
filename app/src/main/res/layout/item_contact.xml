@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp"
+    android:background="#FFFFFF"
+    android:clickable="true"
+    android:focusable="true">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp">
+
+        <!-- Contact Icon -->
+        <ImageView
+            android:id="@+id/imgContactIcon"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:src="@drawable/ic_person"
+            android:background="#E8F5F1"
+            app:tint="#5FB2B2" />
+
+        <!-- Contact Name -->
+        <TextView
+            android:id="@+id/tvContactName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/imgContactIcon"
+            android:layout_alignParentTop="true"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:text="Contact Name"
+            android:textColor="#0F2D37"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Contact Phone -->
+        <TextView
+            android:id="@+id/tvContactPhone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tvContactName"
+            android:layout_toEndOf="@id/imgContactIcon"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="4dp"
+            android:text="+1-234-567890"
+            android:textColor="#5FB2B2"
+            android:textSize="14sp"
+            android:drawablePadding="8dp"
+            app:drawableStartCompat="@drawable/ic_phone"
+            app:drawableTint="#5FB2B2" />
+
+        <!-- Contact Relation -->
+        <TextView
+            android:id="@+id/tvContactRelation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tvContactPhone"
+            android:layout_toEndOf="@id/imgContactIcon"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="4dp"
+            android:text="Father"
+            android:textColor="#546E7A"
+            android:textSize="12sp"
+            android:drawablePadding="8dp"
+            app:drawableStartCompat="@drawable/ic_person"
+            app:drawableTint="#5FB2B2" />
+
+        <!-- Delete Button -->
+        <ImageView
+            android:id="@+id/btnDeleteContact"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/ic_delete"
+            app:tint="#D32F2F"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="8dp" />
+
+    </RelativeLayout>
+</androidx.cardview.widget.CardView>

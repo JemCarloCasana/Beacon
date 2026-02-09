@@ -18,11 +18,31 @@
         app:popExitAnim="@anim/nav_default_pop_exit_anim" />
 </fragment>
 
+<fragment
+        android:id="@+id/nav_profile"
+        android:name="com.example.beacon.profile.ProfileFragment"
+        android:label="Profile"
+        tools:layout="@layout/fragment_profile" />
+
     <fragment
         android:id="@+id/nav_map"
         android:name="com.example.beacon.map.MapFragment"
         android:label="Map"
         tools:layout="@layout/fragment_map" />
+
+    <fragment
+        android:id="@+id/nav_contacts"
+        android:name="com.example.beacon.contacts.ContactsFragment"
+        android:label="Contacts"
+        tools:layout="@layout/fragment_contacts" />
+
+    <action
+            android:id="@+id/action_homeFragment_to_nav_contacts"
+            app:destination="@id/nav_contacts"
+            app:enterAnim="@anim/nav_default_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim"
+            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
 
 <fragment
         android:id="@+id/nav_profile"

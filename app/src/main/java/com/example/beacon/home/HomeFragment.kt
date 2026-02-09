@@ -72,7 +72,7 @@ class HomeFragment : Fragment() {
         if (::sosStateMachine.isInitialized) {
             sosStateMachine.handleEvent(SosEvent.SosDeactivated)
         }
-        
+
         // Re-enable SOS button touch after returning from navigation
         setupSosButton()
     }
@@ -90,7 +90,7 @@ class HomeFragment : Fragment() {
     private fun observeViewModels() {
         // 1. SOS State Machine - replaces old state management
         observeSosStateMachine()
-        
+
         // 2. SOS Active State from SosViewModel - still needed for background changes
         sosViewModel.isSosActive.observe(viewLifecycleOwner) { isActive ->
             if (isActive) {
@@ -171,7 +171,7 @@ class HomeFragment : Fragment() {
                 }
             }
         }
-        
+
         // Observe progress updates
         sosStateMachine.progress.observe(viewLifecycleOwner) { progress ->
             binding.sosProgressRing.progress = progress
@@ -183,12 +183,12 @@ class HomeFragment : Fragment() {
      */
     private fun setupSosStateMachine() {
         sosStateMachine = SosStateMachine()
-        
+
         // Set callback for SOS activation
         sosStateMachine.setOnSosActivatedCallback {
             triggerSosActivation()
         }
-        
+
         // Initialize progress bar for state machine (0-100 range instead of 0-3000)
         binding.sosProgressRing.max = 100
         binding.sosProgressRing.progress = 0
@@ -223,7 +223,7 @@ class HomeFragment : Fragment() {
     private fun triggerSosActivation() {
         // Disable touch during activation to prevent multiple triggers
         binding.sosContainer.setOnTouchListener(null)
-        
+
         // Reset state machine to clean state
         sosStateMachine.reset()
 
@@ -281,20 +281,18 @@ class HomeFragment : Fragment() {
 
     private fun setupContactsButton() {
         binding.btnContacts.setOnClickListener {
-            val contactNumber = "09171234567"
-            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$contactNumber"))
-            startActivity(intent)
+            findNavController().navigate(R.id.nav_contacts)
         }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        
+
         // Clean up state machine
         if (::sosStateMachine.isInitialized) {
             sosStateMachine.cleanup()
         }
-        
+
         // Clean up location updates
         locationViewModel.stopLocationUpdates()
         _binding = null

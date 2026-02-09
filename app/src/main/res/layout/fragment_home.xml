@@ -44,14 +44,6 @@
                     android:orientation="vertical">
 
                     <TextView
-                        android:id="@+id/tvGreeting"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Good morning"
-                        android:textColor="#88A0A0"
-                        android:textSize="16sp" />
-
-                    <TextView
                         android:id="@+id/tvWelcome"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -62,19 +54,6 @@
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <ImageButton
-                    android:id="@+id/btnProfileHeader"
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:background="@drawable/circle_background_light"
-                    android:contentDescription="View Profile"
-                    android:elevation="0dp"
-                    android:stateListAnimator="@null"
-                    android:padding="12dp"
-                    android:src="@drawable/ic_person"
-                    app:tint="#475569" />
             </RelativeLayout>
 
             <FrameLayout
