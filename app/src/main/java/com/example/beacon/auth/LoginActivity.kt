@@ -2,7 +2,10 @@ package com.example.beacon.auth
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Patterns
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.beacon.MainActivity
@@ -28,53 +31,135 @@ class LoginActivity : AppCompatActivity() {
             navigateToMain()
         }
 
-        // Login button click
+        setupTextWatchers()
+        setupClickListeners()
+        updateLoginButtonState()
+    }
+
+    private fun setupTextWatchers() {
+        binding.etEmail.addTextChangedListener(createTextWatcher())
+        binding.etPassword.addTextChangedListener(createTextWatcher())
+        
+        // Add focus listeners for validation on field exit
+        binding.etEmail.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                validateEmail()
+            }
+        }
+        
+        binding.etPassword.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                validatePassword()
+            }
+        }
+    }
+
+    private fun createTextWatcher(): TextWatcher {
+        return object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                // Only clear errors when user starts typing in a field
+                if (s?.isNotEmpty() == true) {
+                    clearErrors()
+                }
+                updateLoginButtonState()
+            }
+        }
+    }
+
+    private fun validateEmail() {
+        val email = binding.etEmail.text.toString().trim()
+        if (email.isEmpty()) {
+            binding.tilEmail.error = "Email is required"
+        } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            binding.tilEmail.error = "Enter a valid email"
+        } else {
+            binding.tilEmail.error = null
+        }
+    }
+
+    private fun validatePassword() {
+        val password = binding.etPassword.text.toString().trim()
+        if (password.isEmpty()) {
+            binding.tilPassword.error = "Password is required"
+        } else if (password.length < 6) {
+            binding.tilPassword.error = "Password must be at least 6 characters"
+        } else {
+            binding.tilPassword.error = null
+        }
+    }
+
+    private fun setupClickListeners() {
         binding.btnLogin.setOnClickListener {
-            val email = binding.etEmail.text.toString().trim()
-            val password = binding.etPassword.text.toString().trim()
-            loginUser(email, password)
+            if (isFormValid()) {
+                val email = binding.etEmail.text.toString().trim()
+                val password = binding.etPassword.text.toString().trim()
+                loginUser(email, password)
+            }
         }
 
-        // Go to Signup screen
         binding.tvSignupAction.setOnClickListener {
             startActivity(Intent(this, SignupActivity::class.java))
         }
 
-        // Optional: Forgot password click
         binding.tvForgotPassword.setOnClickListener {
-            Toast.makeText(this, "Forgot password clicked", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, ForgotPasswordActivity::class.java))
         }
     }
 
-    private fun loginUser(email: String, password: String) {
-        // Input validation
-        if (email.isEmpty()) {
-            binding.etEmail.error = "Email is required"
-            binding.etEmail.requestFocus()
-            return
-        }
+    private fun clearErrors() {
+        binding.tilEmail.error = null
+        binding.tilPassword.error = null
+    }
 
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            binding.etEmail.error = "Enter a valid email"
-            binding.etEmail.requestFocus()
-            return
+    private fun isFormEmpty(): Boolean {
+        val email = binding.etEmail.text.toString().trim()
+        val password = binding.etPassword.text.toString().trim()
+        return email.isEmpty() || password.isEmpty()
+    }
+
+    private fun isFormValid(): Boolean {
+        val email = binding.etEmail.text.toString().trim()
+        val password = binding.etPassword.text.toString().trim()
+        
+        var isValid = true
+
+        if (email.isEmpty()) {
+            binding.tilEmail.error = "Email is required"
+            isValid = false
+        } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            binding.tilEmail.error = "Enter a valid email"
+            isValid = false
         }
 
         if (password.isEmpty()) {
-            binding.etPassword.error = "Password is required"
-            binding.etPassword.requestFocus()
-            return
+            binding.tilPassword.error = "Password is required"
+            isValid = false
+        } else if (password.length < 6) {
+            binding.tilPassword.error = "Password must be at least 6 characters"
+            isValid = false
         }
 
-        if (password.length < 6) {
-            binding.etPassword.error = "Password must be at least 6 characters"
-            binding.etPassword.requestFocus()
-            return
-        }
+        return isValid
+    }
 
-        // Firebase login
+    private fun updateLoginButtonState() {
+        binding.btnLogin.isEnabled = !isFormEmpty()
+    }
+
+    private fun showLoading(isLoading: Boolean) {
+        binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+        binding.btnLogin.isEnabled = !isLoading
+        binding.btnLogin.text = if (isLoading) "" else "Sign In"
+    }
+
+    private fun loginUser(email: String, password: String) {
+        showLoading(true)
+
         auth.signInWithEmailAndPassword(email, password)
             .addOnCompleteListener { task ->
+                showLoading(false)
                 if (task.isSuccessful) {
                     Toast.makeText(this, "Login successful", Toast.LENGTH_SHORT).show()
                     navigateToMain()
@@ -85,6 +170,14 @@ class LoginActivity : AppCompatActivity() {
                         Toast.LENGTH_LONG
                     ).show()
                 }
+            }
+            .addOnFailureListener { exception ->
+                showLoading(false)
+                Toast.makeText(
+                    this,
+                    "Login failed: ${exception.message}",
+                    Toast.LENGTH_LONG
+                ).show()
             }
     }
 

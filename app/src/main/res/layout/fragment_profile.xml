@@ -72,7 +72,7 @@
                     app:layout_constraintTop_toTopOf="@id/imgProfileContainer" />
 
                 <TextView
-                    android:id="@+id/tvAffiliation"
+                    android:id="@+id/tvAddress"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -99,7 +99,7 @@
                     app:drawableTint="#5FB2B2"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="@id/tvUserName"
-                    app:layout_constraintTop_toBottomOf="@id/tvAffiliation" />
+                    app:layout_constraintTop_toBottomOf="@id/tvAddress" />
 
             </androidx.constraintlayout.widget.ConstraintLayout>
         </com.google.android.material.card.MaterialCardView>

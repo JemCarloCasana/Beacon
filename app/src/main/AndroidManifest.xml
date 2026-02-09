@@ -20,9 +20,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Beacon">
 
-        <!-- 🔹 Auth Activities -->
+        <!-- 🔹 Splash Screen - New Launcher -->
         <activity
-            android:name=".auth.LoginActivity"
+            android:name=".SplashActivity"
             android:exported="true"
             android:theme="@style/Theme.Beacon">
             <intent-filter>
@@ -31,8 +31,25 @@
             </intent-filter>
         </activity>
 
+        <!-- 🔹 Onboarding Activity -->
+        <activity
+            android:name=".OnboardingActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Beacon" />
+
+        <!-- 🔹 Auth Activities -->
+        <activity
+            android:name=".auth.LoginActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Beacon" />
+
         <activity
             android:name=".auth.SignupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Beacon" />
+
+        <activity
+            android:name=".auth.ForgotPasswordActivity"
             android:exported="false"
             android:theme="@style/Theme.Beacon" />
 

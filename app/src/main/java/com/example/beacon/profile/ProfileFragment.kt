@@ -6,6 +6,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.navigation.fragment.findNavController
+import com.example.beacon.R
 import com.example.beacon.databinding.FragmentProfileBinding
 import com.example.beacon.viewmodel.ActivityViewModel
 
@@ -31,6 +33,11 @@ class ProfileFragment : Fragment() {
         // Only log out when this specific button is clicked
         binding.btnLogout.setOnClickListener {
             activityViewModel.logout()
+        }
+
+        // Navigate to edit profile
+        binding.btnEditProfile.setOnClickListener {
+            findNavController().navigate(R.id.action_profileFragment_to_editProfileFragment)
         }
     }
 
