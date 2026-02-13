@@ -4,14 +4,19 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.util.Patterns
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.example.beacon.MainActivity
+import com.example.beacon.api.ApiClient
+import com.example.beacon.api.models.BootstrapRequest
 import com.example.beacon.databinding.ActivityLoginBinding
 import com.google.firebase.auth.FirebaseAuth
-import kotlin.jvm.java
+import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 class LoginActivity : AppCompatActivity() {
 
@@ -23,12 +28,12 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Initialize Firebase Auth
         auth = FirebaseAuth.getInstance()
 
-        // Automatically navigate if user is already logged in
+        // If user is already logged in, still sync profile from Postgres, then continue.
         if (auth.currentUser != null) {
-            navigateToMain()
+            syncPostgresProfileThenNavigate()
+            return
         }
 
         setupTextWatchers()
@@ -39,18 +44,13 @@ class LoginActivity : AppCompatActivity() {
     private fun setupTextWatchers() {
         binding.etEmail.addTextChangedListener(createTextWatcher())
         binding.etPassword.addTextChangedListener(createTextWatcher())
-        
-        // Add focus listeners for validation on field exit
+
         binding.etEmail.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                validateEmail()
-            }
+            if (!hasFocus) validateEmail()
         }
-        
+
         binding.etPassword.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                validatePassword()
-            }
+            if (!hasFocus) validatePassword()
         }
     }
 
@@ -59,10 +59,7 @@ class LoginActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                // Only clear errors when user starts typing in a field
-                if (s?.isNotEmpty() == true) {
-                    clearErrors()
-                }
+                if (s?.isNotEmpty() == true) clearErrors()
                 updateLoginButtonState()
             }
         }
@@ -70,23 +67,19 @@ class LoginActivity : AppCompatActivity() {
 
     private fun validateEmail() {
         val email = binding.etEmail.text.toString().trim()
-        if (email.isEmpty()) {
-            binding.tilEmail.error = "Email is required"
-        } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            binding.tilEmail.error = "Enter a valid email"
-        } else {
-            binding.tilEmail.error = null
+        when {
+            email.isEmpty() -> binding.tilEmail.error = "Email is required"
+            !Patterns.EMAIL_ADDRESS.matcher(email).matches() -> binding.tilEmail.error = "Enter a valid email"
+            else -> binding.tilEmail.error = null
         }
     }
 
     private fun validatePassword() {
         val password = binding.etPassword.text.toString().trim()
-        if (password.isEmpty()) {
-            binding.tilPassword.error = "Password is required"
-        } else if (password.length < 6) {
-            binding.tilPassword.error = "Password must be at least 6 characters"
-        } else {
-            binding.tilPassword.error = null
+        when {
+            password.isEmpty() -> binding.tilPassword.error = "Password is required"
+            password.length < 6 -> binding.tilPassword.error = "Password must be at least 6 characters"
+            else -> binding.tilPassword.error = null
         }
     }
 
@@ -122,7 +115,7 @@ class LoginActivity : AppCompatActivity() {
     private fun isFormValid(): Boolean {
         val email = binding.etEmail.text.toString().trim()
         val password = binding.etPassword.text.toString().trim()
-        
+
         var isValid = true
 
         if (email.isEmpty()) {
@@ -162,7 +155,8 @@ class LoginActivity : AppCompatActivity() {
                 showLoading(false)
                 if (task.isSuccessful) {
                     Toast.makeText(this, "Login successful", Toast.LENGTH_SHORT).show()
-                    navigateToMain()
+                    // ✅ After login, sync Postgres profile then continue
+                    syncPostgresProfileThenNavigate()
                 } else {
                     Toast.makeText(
                         this,
@@ -178,6 +172,80 @@ class LoginActivity : AppCompatActivity() {
                     "Login failed: ${exception.message}",
                     Toast.LENGTH_LONG
                 ).show()
+            }
+    }
+
+    /**
+     * Correct logic:
+     * 1) Get Firebase ID token
+     * 2) Call GET /me
+     * 3) If 404 -> POST /me/bootstrap (first-time only)
+     * 4) Navigate to main
+     *
+     * NOTE: Bootstrap needs full_name. On login you don't have it.
+     * For now we use a placeholder; later move bootstrap to Signup flow with the real full name.
+     */
+    private fun syncPostgresProfileThenNavigate() {
+        val firebaseUser = auth.currentUser ?: run {
+            navigateToMain()
+            return
+        }
+
+        showLoading(true)
+
+        firebaseUser.getIdToken(true)
+            .addOnSuccessListener { result ->
+                val token = result.token
+                if (token.isNullOrBlank()) {
+                    showLoading(false)
+                    navigateToMain()
+                    return@addOnSuccessListener
+                }
+
+                val authHeader = "Bearer $token"
+
+                lifecycleScope.launch {
+                    try {
+                        // Try loading profile
+                        val me = ApiClient.api.me(authHeader)
+                        Log.d("API_ME", "Loaded Postgres profile id=${me.id}")
+                        showLoading(false)
+                        navigateToMain()
+
+                    } catch (e: HttpException) {
+                        if (e.code() == 404) {
+                            // First-time user profile missing -> bootstrap
+                            try {
+                                val created = ApiClient.api.bootstrap(
+                                    authHeader = authHeader,
+                                    body = BootstrapRequest(
+                                        full_name = "Temp User",
+                                        phone_number = null
+                                    )
+                                )
+                                Log.d("API_BOOTSTRAP", "Created Postgres profile id=${created.id}")
+                            } catch (ex: Exception) {
+                                Log.e("API_BOOTSTRAP", "Bootstrap failed", ex)
+                            } finally {
+                                showLoading(false)
+                                navigateToMain()
+                            }
+                        } else {
+                            Log.e("API_ME", "GET /me failed code=${e.code()}", e)
+                            showLoading(false)
+                            navigateToMain()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("API_ME", "Network/Unknown error", e)
+                        showLoading(false)
+                        navigateToMain()
+                    }
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("ID_TOKEN", "Failed to get token", e)
+                showLoading(false)
+                navigateToMain()
             }
     }
 

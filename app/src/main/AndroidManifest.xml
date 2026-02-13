@@ -17,7 +17,8 @@
         android:label="@string/app_name"
         android:roundIcon="@drawable/logo_final"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Beacon">
+        android:theme="@style/Theme.Beacon"
+        android:usesCleartextTraffic="true">
 
         <!-- 🔹 Splash Screen - New Launcher -->
         <activity
