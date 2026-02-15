@@ -4,14 +4,20 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.util.Patterns
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.example.beacon.MainActivity
+import com.example.beacon.api.ApiClient
+import com.example.beacon.api.models.BootstrapRequest
 import com.example.beacon.databinding.ActivitySignupBinding
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
+import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 class SignupActivity : AppCompatActivity() {
 
@@ -21,6 +27,8 @@ class SignupActivity : AppCompatActivity() {
     companion object {
         private val PASSWORD_REGEX = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$".toRegex()
         private val FULL_NAME_REGEX = "^[a-zA-Z\\s'-]{2,50}$".toRegex()
+        private val PHONE_REGEX = "^((\\+63)|0)\\d{10}$".toRegex()
+        private const val TAG = "SignupActivity"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,31 +47,23 @@ class SignupActivity : AppCompatActivity() {
         binding.etFullName.addTextChangedListener(createTextWatcher())
         binding.etEmail.addTextChangedListener(createTextWatcher())
         binding.etPassword.addTextChangedListener(createTextWatcher())
+        binding.etPhone.addTextChangedListener(createTextWatcher())
         binding.etConfirmPassword.addTextChangedListener(createTextWatcher())
-        
-        // Add focus listeners for validation on field exit
+
         binding.etFullName.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                validateFullName()
-            }
+            if (!hasFocus) validateFullName()
         }
-        
         binding.etEmail.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                validateEmail()
-            }
+            if (!hasFocus) validateEmail()
         }
-        
         binding.etPassword.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                validatePassword()
-            }
+            if (!hasFocus) validatePassword()
         }
-        
+        binding.etPhone.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) validatePhone()
+        }
         binding.etConfirmPassword.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                validateConfirmPassword()
-            }
+            if (!hasFocus) validateConfirmPassword()
         }
     }
 
@@ -72,13 +72,9 @@ class SignupActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                // Only clear errors when user starts typing in a field
-                if (s?.isNotEmpty() == true) {
-                    clearErrors()
-                }
+                if (s?.isNotEmpty() == true) clearErrors()
                 updateSignupButtonState()
-                
-                // Special case: validate confirm password when password changes
+
                 if (s?.isNotEmpty() == true && binding.etConfirmPassword.text.toString().trim().isNotEmpty()) {
                     validateConfirmPassword()
                 }
@@ -91,7 +87,8 @@ class SignupActivity : AppCompatActivity() {
         if (fullName.isEmpty()) {
             binding.tilFullName.error = "Full name is required"
         } else if (!isFullNameValid(fullName)) {
-            binding.tilFullName.error = "Full name can only contain letters, spaces, hyphens, and apostrophes (2-50 characters)"
+            binding.tilFullName.error =
+                "Full name can only contain letters, spaces, hyphens, and apostrophes (2-50 characters)"
         } else {
             binding.tilFullName.error = null
         }
@@ -117,8 +114,7 @@ class SignupActivity : AppCompatActivity() {
         } else {
             binding.tilPassword.error = null
         }
-        
-        // Also validate confirm password if it has content
+
         if (binding.etConfirmPassword.text.toString().trim().isNotEmpty()) {
             validateConfirmPassword()
         }
@@ -136,14 +132,26 @@ class SignupActivity : AppCompatActivity() {
         }
     }
 
+    private fun validatePhone() {
+        val phone = binding.etPhone.text.toString().trim()
+        if (phone.isEmpty()) {
+            binding.tilPhone.error = "Phone number is required"
+        } else if (!isPhoneValid(phone)) {
+            binding.tilPhone.error = "Enter a valid Philippine phone number (e.g., 09123456789 or +639123456789)"
+        } else {
+            binding.tilPhone.error = null
+        }
+    }
+
     private fun setupClickListeners() {
         binding.btnSignup.setOnClickListener {
             if (isFormValid()) {
                 val fullName = binding.etFullName.text.toString().trim()
                 val email = binding.etEmail.text.toString().trim()
                 val password = binding.etPassword.text.toString().trim()
+                val phone = binding.etPhone.text.toString().trim()
                 val confirmPassword = binding.etConfirmPassword.text.toString().trim()
-                registerUser(fullName, email, password, confirmPassword)
+                registerUser(fullName, email, phone, password, confirmPassword)
             }
         }
 
@@ -157,38 +165,40 @@ class SignupActivity : AppCompatActivity() {
         binding.tilFullName.error = null
         binding.tilEmail.error = null
         binding.tilPassword.error = null
+        binding.tilPhone.error = null
         binding.tilConfirmPassword.error = null
     }
 
-    private fun isPasswordValid(password: String): Boolean {
-        return PASSWORD_REGEX.matches(password)
-    }
+    private fun isPasswordValid(password: String): Boolean = PASSWORD_REGEX.matches(password)
 
-    private fun isFullNameValid(fullName: String): Boolean {
-        return FULL_NAME_REGEX.matches(fullName.trim())
-    }
+    private fun isFullNameValid(fullName: String): Boolean = FULL_NAME_REGEX.matches(fullName.trim())
+
+    private fun isPhoneValid(phone: String): Boolean = PHONE_REGEX.matches(phone)
 
     private fun isFormEmpty(): Boolean {
         val fullName = binding.etFullName.text.toString().trim()
         val email = binding.etEmail.text.toString().trim()
         val password = binding.etPassword.text.toString().trim()
+        val phone = binding.etPhone.text.toString().trim()
         val confirmPassword = binding.etConfirmPassword.text.toString().trim()
-        return fullName.isEmpty() || email.isEmpty() || password.isEmpty() || confirmPassword.isEmpty()
+        return fullName.isEmpty() || email.isEmpty() || password.isEmpty() || phone.isEmpty() || confirmPassword.isEmpty()
     }
 
     private fun isFormValid(): Boolean {
         val fullName = binding.etFullName.text.toString().trim()
         val email = binding.etEmail.text.toString().trim()
         val password = binding.etPassword.text.toString().trim()
+        val phone = binding.etPhone.text.toString().trim()
         val confirmPassword = binding.etConfirmPassword.text.toString().trim()
-        
+
         var isValid = true
 
         if (fullName.isEmpty()) {
             binding.tilFullName.error = "Full name is required"
             isValid = false
         } else if (!isFullNameValid(fullName)) {
-            binding.tilFullName.error = "Full name can only contain letters, spaces, hyphens, and apostrophes (2-50 characters)"
+            binding.tilFullName.error =
+                "Full name can only contain letters, spaces, hyphens, and apostrophes (2-50 characters)"
             isValid = false
         }
 
@@ -205,6 +215,14 @@ class SignupActivity : AppCompatActivity() {
             isValid = false
         } else if (!isPasswordValid(password)) {
             binding.tilPassword.error = "Password must be at least 8 characters with uppercase, lowercase, and number"
+            isValid = false
+        }
+
+        if (phone.isEmpty()) {
+            binding.tilPhone.error = "Phone number is required"
+            isValid = false
+        } else if (!isPhoneValid(phone)) {
+            binding.tilPhone.error = "Enter a valid Philippine phone number (e.g., 09123456789 or +639123456789)"
             isValid = false
         }
 
@@ -232,6 +250,7 @@ class SignupActivity : AppCompatActivity() {
     private fun registerUser(
         fullName: String,
         email: String,
+        phone: String,
         password: String,
         confirmPassword: String
     ) {
@@ -239,70 +258,33 @@ class SignupActivity : AppCompatActivity() {
 
         auth.createUserWithEmailAndPassword(email, password)
             .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val user = auth.currentUser
-                    val profileUpdates = UserProfileChangeRequest.Builder()
-                        .setDisplayName(fullName)
-                        .build()
-
-                    user?.updateProfile(profileUpdates)?.addOnCompleteListener { profileTask ->
-                    if (profileTask.isSuccessful) {
-                        // Create Firestore document for user
-                        val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                        val userDoc = hashMapOf(
-                            "uid" to user.uid,
-                            "email" to user.email,
-                            "displayName" to fullName,
-                            "address" to "",
-                            "phoneNumber" to "",
-                            "profileImageUrl" to "",
-                            "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                        )
-                        
-                        firestore.collection("users").document(user.uid)
-                            .set(userDoc)
-                            .addOnSuccessListener {
-                                android.util.Log.d("SignupActivity", "Firestore document created for user: ${user.uid}")
-                                showLoading(false)
-                                Toast.makeText(this, "Account created successfully", Toast.LENGTH_SHORT).show()
-                                val intent = Intent(this, MainActivity::class.java)
-                                startActivity(intent)
-                                finish()
-                            }
-                            .addOnFailureListener { e ->
-                                android.util.Log.e("SignupActivity", "Failed to create Firestore document", e)
-                                showLoading(false)
-                                val errorMessage = when {
-                                    e.message?.contains("permission-denied") == true -> 
-                                        "Permission denied creating profile."
-                                    e.message?.contains("unavailable") == true -> 
-                                        "Network error creating profile."
-                                    else -> "Error creating profile: ${e.message}"
-                                }
-                                Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
-                            }
-                    } else {
-                        showLoading(false)
-                        val errorMessage = when {
-                            profileTask.exception?.message?.contains("email-already-in-use") == true -> 
-                                "Email is already registered."
-                            profileTask.exception?.message?.contains("weak-password") == true -> 
-                                "Password is too weak."
-                            profileTask.exception?.message?.contains("invalid-email") == true -> 
-                                "Invalid email address."
-                            else -> "Profile update failed: ${profileTask.exception?.message}"
-                        }
-                        Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
-                    }
-                }
-                } else {
+                if (!task.isSuccessful) {
                     showLoading(false)
                     Toast.makeText(
                         this,
                         "Signup failed: ${task.exception?.message}",
                         Toast.LENGTH_LONG
                     ).show()
+                    return@addOnCompleteListener
                 }
+
+                val user = auth.currentUser
+                if (user == null) {
+                    showLoading(false)
+                    Toast.makeText(this, "Signup failed: user session missing", Toast.LENGTH_LONG).show()
+                    return@addOnCompleteListener
+                }
+
+                // Optional: set Firebase display name
+                val profileUpdates = UserProfileChangeRequest.Builder()
+                    .setDisplayName(fullName)
+                    .build()
+
+                user.updateProfile(profileUpdates)
+                    .addOnCompleteListener {
+                        // Even if this fails, we still proceed to bootstrap Postgres
+                        bootstrapPostgresProfileAndNavigate(fullName, phone)
+                    }
             }
             .addOnFailureListener { exception ->
                 showLoading(false)
@@ -312,5 +294,67 @@ class SignupActivity : AppCompatActivity() {
                     Toast.LENGTH_LONG
                 ).show()
             }
+    }
+
+    /**
+     * ✅ This is the correct place to call POST /me/bootstrap
+     * because Signup has the real full_name.
+     */
+    private fun bootstrapPostgresProfileAndNavigate(fullName: String, phone: String) {
+        val user = auth.currentUser ?: run {
+            showLoading(false)
+            Toast.makeText(this, "Signup failed: user session missing", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        user.getIdToken(true)
+            .addOnSuccessListener { result ->
+                val token = result.token
+                if (token.isNullOrBlank()) {
+                    showLoading(false)
+                    Toast.makeText(this, "Failed to get auth token", Toast.LENGTH_LONG).show()
+                    return@addOnSuccessListener
+                }
+
+                val authHeader = "Bearer $token"
+
+                lifecycleScope.launch {
+                    try {
+                        val created = ApiClient.api.bootstrap(
+                            authHeader = authHeader,
+                            body = BootstrapRequest(
+                                full_name = fullName,
+                                phone_number = phone
+                            )
+                        )
+
+                        Log.d(TAG, "Bootstrapped Postgres profile id=${created.id}")
+                        showLoading(false)
+                        Toast.makeText(this@SignupActivity, "Account created successfully", Toast.LENGTH_SHORT).show()
+                        navigateToMain()
+
+                    } catch (e: HttpException) {
+                        Log.e(TAG, "Bootstrap failed code=${e.code()}", e)
+                        showLoading(false)
+                        Toast.makeText(this@SignupActivity, "Profile setup failed (server).", Toast.LENGTH_LONG).show()
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Bootstrap failed", e)
+                        showLoading(false)
+                        Toast.makeText(this@SignupActivity, "Profile setup failed (network).", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to get token", e)
+                showLoading(false)
+                Toast.makeText(this, "Failed to get auth token", Toast.LENGTH_LONG).show()
+            }
+    }
+
+    private fun navigateToMain() {
+        val intent = Intent(this, MainActivity::class.java)
+        startActivity(intent)
+        finish()
     }
 }

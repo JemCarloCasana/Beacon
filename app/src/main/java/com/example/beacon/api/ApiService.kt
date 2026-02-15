@@ -1,6 +1,8 @@
 package com.example.beacon.api
 
 import com.example.beacon.api.models.BootstrapRequest
+import com.example.beacon.api.models.DeviceDto
+import com.example.beacon.api.models.DeviceRegisterRequest
 import com.example.beacon.api.models.UserDto
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -18,4 +20,11 @@ interface ApiService {
     suspend fun me(
         @Header("Authorization") authHeader: String
     ): UserDto
+
+    @POST("/devices/register")
+    suspend fun registerDevice(
+        @Header("Authorization") authHeader: String,
+        @Body body: DeviceRegisterRequest
+    ): DeviceDto
+
 }

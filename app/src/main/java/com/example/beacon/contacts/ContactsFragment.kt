@@ -1,39 +1,47 @@
 package com.example.beacon.contacts
 
+import android.app.Dialog
 import android.os.Bundle
-import androidx.fragment.app.Fragment
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.TextView
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.Toast
+import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.beacon.R
 import com.example.beacon.databinding.FragmentContactsBinding
+import com.google.android.material.button.MaterialButton
 import java.util.UUID
 
-// Contact data class
 data class Contact(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val phone: String,
     val relation: String,
+    val isPrimary: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )
 
-/**
- * Emergency Contacts Fragment
- * 
- * Displays and manages emergency contact information
- * Supports CRUD operations (Create, Read, Update, Delete)
- * Integrates with Firebase Firestore for persistence
- */
-class ContactsFragment : Fragment() {
+class ContactsFragment : Fragment(), 
+    AddContactDialogFragment.OnContactAddedListener,
+    EditContactDialogFragment.OnContactEditedListener {
 
     private var _binding: FragmentContactsBinding? = null
     private val binding get() = _binding!!
 
-    private val contactsList = mutableListOf<Contact>()
+    private val primaryContacts = mutableListOf<Contact>()
+    private val allContacts = mutableListOf<Contact>()
+
+    private lateinit var primaryAdapter: PrimaryContactsAdapter
+    private lateinit var allAdapter: AllContactsAdapter
+
+    companion object {
+        private const val MAX_PRIMARY_CONTACTS = 3
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,10 +60,8 @@ class ContactsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         
         setupToolbar()
-        setupContactList()
+        setupRecyclerViews()
         setupFabButton()
-        
-        // Load existing contacts
         loadContacts()
     }
 
@@ -65,9 +71,29 @@ class ContactsFragment : Fragment() {
         }
     }
 
-    private fun setupContactList() {
-        // Static layout - contacts are displayed directly in XML
-        // No need for RecyclerView setup with current design
+    private fun setupRecyclerViews() {
+        primaryAdapter = PrimaryContactsAdapter(
+            onCallClick = { contact -> makePhoneCall(contact) },
+            onEdit = { contact -> editContact(contact) },
+            onRemoveFromPrimary = { contact -> removeFromPrimary(contact) },
+            onDelete = { contact -> deleteContact(contact) }
+        )
+
+        allAdapter = AllContactsAdapter(
+            onSetPrimary = { contact -> showPrimarySwapDialog(contact) },
+            onEdit = { contact -> editContact(contact) },
+            onDelete = { contact -> deleteContact(contact) }
+        )
+
+        binding.rvPrimaryContacts.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = primaryAdapter
+        }
+
+        binding.rvAllContacts.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = allAdapter
+        }
     }
 
     private fun setupFabButton() {
@@ -76,59 +102,150 @@ class ContactsFragment : Fragment() {
         }
     }
 
-    private fun updateContactListDisplay() {
-        // Static layout - no dynamic updates needed
-        // Contacts are hardcoded in the XML layout
-        // This method is kept for compatibility but does nothing
+    private fun showAddContactDialog() {
+        val dialog = AddContactDialogFragment.newInstance()
+        dialog.setOnContactAddedListener(this)
+        dialog.show(childFragmentManager, AddContactDialogFragment.TAG)
     }
 
-    private fun showAddContactDialog() {
-        // Simple dialog for adding new contact
-        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_add_contact, null)
+    private fun updateContactListDisplay() {
+        primaryAdapter.submitList(primaryContacts.toList())
+        allAdapter.submitList(allContacts.toList())
         
-        androidx.appcompat.app.AlertDialog.Builder(requireContext())
-            .setTitle("Add Emergency Contact")
-            .setView(dialogView)
-            .setPositiveButton("Add") { _, _ ->
-                val name = dialogView.findViewById<android.widget.EditText>(R.id.etContactName)?.text.toString()
-                val phone = dialogView.findViewById<android.widget.EditText>(R.id.etContactPhone)?.text.toString()
-                val relation = dialogView.findViewById<android.widget.EditText>(R.id.etContactRelation)?.text.toString()
-                
-                if (name.isNotBlank() && phone.isNotBlank()) {
-                    val newContact = Contact(name = name, phone = phone, relation = relation)
-                    contactsList.add(newContact)
-                    updateContactListDisplay()
-                    // Here you would save to Firebase Firestore
-                }
+        binding.tvPrimaryCount.text = "${primaryContacts.size}/$MAX_PRIMARY_CONTACTS"
+    }
+
+    override fun onContactAdded(contact: Contact) {
+        if (primaryContacts.size < MAX_PRIMARY_CONTACTS) {
+            val newPrimary = contact.copy(isPrimary = true)
+            primaryContacts.add(newPrimary)
+        } else {
+            allContacts.add(contact)
+        }
+        updateContactListDisplay()
+    }
+
+    private fun showPrimarySwapDialog(contact: Contact) {
+        if (primaryContacts.isEmpty()) {
+            Toast.makeText(requireContext(), "No primary contacts to replace", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_select_primary, null)
+        val radioGroup = dialogView.findViewById<RadioGroup>(R.id.rgPrimaryContacts)
+        
+        primaryContacts.forEachIndexed { index, primary ->
+            val radioButton = RadioButton(requireContext()).apply {
+                id = View.generateViewId()
+                text = "${primary.name} (${primary.relation})"
+                tag = index
+                textSize = 14f
+                setPadding(8, 16, 8, 16)
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+            radioGroup.addView(radioButton)
+        }
+
+        val dialog = Dialog(requireContext())
+        dialog.setContentView(dialogView)
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.85).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        dialog.window?.setGravity(Gravity.CENTER)
+        dialog.window?.setBackgroundDrawableResource(android.R.color.white)
+
+        dialogView.findViewById<MaterialButton>(R.id.btnCancel).setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialogView.findViewById<MaterialButton>(R.id.btnConfirm).setOnClickListener {
+            val selectedId = radioGroup.checkedRadioButtonId
+            if (selectedId != -1) {
+                val selectedRadioButton = dialogView.findViewById<RadioButton>(selectedId)
+                val selectedIndex = selectedRadioButton.tag as Int
+                swapPrimaryContact(selectedIndex, contact)
+                dialog.dismiss()
+            } else {
+                Toast.makeText(requireContext(), "Please select a primary contact to replace", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun swapPrimaryContact(primaryIndex: Int, newPrimary: Contact) {
+        val oldPrimary = primaryContacts[primaryIndex]
+        
+        primaryContacts[primaryIndex] = newPrimary.copy(isPrimary = true)
+        
+        allContacts.add(oldPrimary.copy(isPrimary = false))
+        
+        updateContactListDisplay()
+    }
+
+    private fun removeFromPrimary(contact: Contact) {
+        primaryContacts.remove(contact)
+        allContacts.add(contact.copy(isPrimary = false))
+        updateContactListDisplay()
     }
 
     private fun deleteContact(contact: Contact) {
-        contactsList.remove(contact)
+        if (contact.isPrimary) {
+            primaryContacts.remove(contact)
+        } else {
+            allContacts.remove(contact)
+        }
         updateContactListDisplay()
-        // Here you would delete from Firebase Firestore
+    }
+
+    private fun editContact(contact: Contact) {
+        val dialog = EditContactDialogFragment.newInstance(contact)
+        dialog.setOnContactEditedListener(this)
+        dialog.show(childFragmentManager, EditContactDialogFragment.TAG)
+    }
+
+    override fun onContactEdited(updatedContact: Contact) {
+        if (updatedContact.isPrimary) {
+            val index = primaryContacts.indexOfFirst { it.id == updatedContact.id }
+            if (index != -1) {
+                primaryContacts[index] = updatedContact
+            }
+        } else {
+            val index = allContacts.indexOfFirst { it.id == updatedContact.id }
+            if (index != -1) {
+                allContacts[index] = updatedContact
+            }
+        }
+        updateContactListDisplay()
+    }
+
+    private fun makePhoneCall(contact: Contact) {
+        Toast.makeText(requireContext(), "Calling ${contact.name}", Toast.LENGTH_SHORT).show()
     }
 
     private fun loadContacts() {
-        // Here you would load from Firebase Firestore
-        // For demo, add sample contacts
-        val sampleContacts = listOf(
-            Contact(name = "John Doe", phone = "+1-234-567890", relation = "Father"),
-            Contact(name = "Jane Doe", phone = "+1-234-567891", relation = "Mother"),
-            Contact(name = "Emergency Services", phone = "+1-800-555-1234", relation = "Service")
+        val samplePrimary = listOf(
+            Contact(name = "Maria Rivera", phone = "(555) 012-3456", relation = "Mother", isPrimary = true),
+            Contact(name = "David Chen", phone = "(555) 987-6543", relation = "Partner", isPrimary = true),
+            Contact(name = "Sarah Miller", phone = "(555) 456-7890", relation = "Best Friend", isPrimary = true)
         )
-        contactsList.addAll(sampleContacts)
+
+        val sampleAll = listOf(
+            Contact(name = "Dr. James Wilson", phone = "(555) 111-2222", relation = "Primary Doctor"),
+            Contact(name = "Neighbor Mike", phone = "(555) 333-4444", relation = "Neighbor")
+        )
+
+        primaryContacts.clear()
+        allContacts.clear()
+        
+        primaryContacts.addAll(samplePrimary)
+        allContacts.addAll(sampleAll)
+        
         updateContactListDisplay()
     }
 
-    companion object {
-        private const val ARG_PARAM1 = "param1"
-        private const val ARG_PARAM2 = "param2"
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }
-
-// ContactAdapter is not needed for static layout
-// Contacts are displayed directly in XML
-// This class is removed but Contact data class is kept for future use

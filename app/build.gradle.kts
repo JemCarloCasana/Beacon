@@ -1,4 +1,5 @@
 // 👇 ADD THIS IMPORT AT THE TOP
+import org.gradle.kotlin.dsl.implementation
 import java.util.Properties
 
 plugins {
@@ -94,6 +95,10 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // Messaging
+    implementation ("com.google.firebase:firebase-messaging-ktx")
+
 
 
     // ================= TESTING =================

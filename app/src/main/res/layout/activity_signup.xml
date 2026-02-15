@@ -2,7 +2,7 @@
 <!--
     Beacon Signup Layout
     Material 3 Theme - Adaptive from Login Aesthetic
-    Icons (ic_person, ic_mail, ic_lock, ic_google, ic_apple)
+    Icons (ic_person, ic_mail, ic_lock, ic_google, ic_apple, ic_phone)
     should be added to your res/drawable folder.
 -->
 <androidx.constraintlayout.widget.ConstraintLayout
@@ -88,6 +88,29 @@
                     android:textColor="#202124" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <!-- Phone Number Field (NOW BEFORE EMAIL) -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilPhone"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:hint="Phone Number (e.g., 09123456789)"
+                app:boxStrokeColor="#1A73E8"
+                app:hintTextColor="#1A73E8"
+                app:layout_constraintTop_toBottomOf="@id/tilFullName"
+                app:startIconDrawable="@drawable/ic_phone"
+                app:startIconTint="#5F6368">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etPhone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="phone"
+                    android:maxLength="13"
+                    android:textColor="#202124" />
+            </com.google.android.material.textfield.TextInputLayout>
+
             <!-- Email Field -->
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/tilEmail"
@@ -98,7 +121,7 @@
                 android:hint="Email Address"
                 app:boxStrokeColor="#1A73E8"
                 app:hintTextColor="#1A73E8"
-                app:layout_constraintTop_toBottomOf="@id/tilFullName"
+                app:layout_constraintTop_toBottomOf="@id/tilPhone"
                 app:startIconDrawable="@drawable/ic_mail"
                 app:startIconTint="#5F6368">
 
@@ -189,10 +212,7 @@
                 android:layout_marginTop="32dp"
                 android:gravity="center"
                 android:orientation="horizontal"
-                app:layout_constraintTop_toBottomOf="@id/btnSignup">
-            </LinearLayout>
-
-
+                app:layout_constraintTop_toBottomOf="@id/btnSignup" />
 
             <!-- Footer Link -->
             <LinearLayout
@@ -202,10 +222,10 @@
                 android:layout_marginTop="40dp"
                 android:layout_marginBottom="24dp"
                 android:orientation="horizontal"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/llDivider"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/btnSignup">
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent">
 
                 <TextView
                     android:layout_width="wrap_content"

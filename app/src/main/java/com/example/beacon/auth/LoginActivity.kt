@@ -12,9 +12,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.beacon.MainActivity
 import com.example.beacon.api.ApiClient
-import com.example.beacon.api.models.BootstrapRequest
+import com.example.beacon.api.models.DeviceRegisterRequest
 import com.example.beacon.databinding.ActivityLoginBinding
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -30,9 +31,8 @@ class LoginActivity : AppCompatActivity() {
 
         auth = FirebaseAuth.getInstance()
 
-        // If user is already logged in, still sync profile from Postgres, then continue.
         if (auth.currentUser != null) {
-            syncPostgresProfileThenNavigate()
+            loadMeThenNavigate()
             return
         }
 
@@ -152,12 +152,21 @@ class LoginActivity : AppCompatActivity() {
 
         auth.signInWithEmailAndPassword(email, password)
             .addOnCompleteListener { task ->
-                showLoading(false)
                 if (task.isSuccessful) {
                     Toast.makeText(this, "Login successful", Toast.LENGTH_SHORT).show()
-                    // ✅ After login, sync Postgres profile then continue
-                    syncPostgresProfileThenNavigate()
+
+                    // Optional: keep for Postman debugging
+                    auth.currentUser?.getIdToken(true)
+                        ?.addOnSuccessListener { result ->
+                            Log.d("ID_TOKEN_DEBUG", result.token ?: "NULL TOKEN")
+                        }
+                        ?.addOnFailureListener { e ->
+                            Log.e("ID_TOKEN_DEBUG", "Failed to get token", e)
+                        }
+
+                    loadMeThenNavigate()
                 } else {
+                    showLoading(false)
                     Toast.makeText(
                         this,
                         "Login failed: ${task.exception?.message}",
@@ -175,19 +184,9 @@ class LoginActivity : AppCompatActivity() {
             }
     }
 
-    /**
-     * Correct logic:
-     * 1) Get Firebase ID token
-     * 2) Call GET /me
-     * 3) If 404 -> POST /me/bootstrap (first-time only)
-     * 4) Navigate to main
-     *
-     * NOTE: Bootstrap needs full_name. On login you don't have it.
-     * For now we use a placeholder; later move bootstrap to Signup flow with the real full name.
-     */
-    private fun syncPostgresProfileThenNavigate() {
+    private fun loadMeThenNavigate() {
         val firebaseUser = auth.currentUser ?: run {
-            navigateToMain()
+            showLoading(false)
             return
         }
 
@@ -198,7 +197,7 @@ class LoginActivity : AppCompatActivity() {
                 val token = result.token
                 if (token.isNullOrBlank()) {
                     showLoading(false)
-                    navigateToMain()
+                    Toast.makeText(this, "Failed to get auth token", Toast.LENGTH_LONG).show()
                     return@addOnSuccessListener
                 }
 
@@ -206,44 +205,74 @@ class LoginActivity : AppCompatActivity() {
 
                 lifecycleScope.launch {
                     try {
-                        // Try loading profile
                         val me = ApiClient.api.me(authHeader)
                         Log.d("API_ME", "Loaded Postgres profile id=${me.id}")
-                        showLoading(false)
-                        navigateToMain()
+
+                        // ✅ NEW: register device with REAL FCM token, then continue
+                        registerDeviceThenNavigate(authHeader)
 
                     } catch (e: HttpException) {
+                        showLoading(false)
+
                         if (e.code() == 404) {
-                            // First-time user profile missing -> bootstrap
-                            try {
-                                val created = ApiClient.api.bootstrap(
-                                    authHeader = authHeader,
-                                    body = BootstrapRequest(
-                                        full_name = "Temp User",
-                                        phone_number = null
-                                    )
-                                )
-                                Log.d("API_BOOTSTRAP", "Created Postgres profile id=${created.id}")
-                            } catch (ex: Exception) {
-                                Log.e("API_BOOTSTRAP", "Bootstrap failed", ex)
-                            } finally {
-                                showLoading(false)
-                                navigateToMain()
-                            }
+                            Toast.makeText(
+                                this@LoginActivity,
+                                "Profile not found. Please sign up again or complete your profile.",
+                                Toast.LENGTH_LONG
+                            ).show()
+
+                            auth.signOut()
+                            startActivity(Intent(this@LoginActivity, SignupActivity::class.java))
+                            finish()
                         } else {
                             Log.e("API_ME", "GET /me failed code=${e.code()}", e)
-                            showLoading(false)
-                            navigateToMain()
+                            Toast.makeText(
+                                this@LoginActivity,
+                                "Server error. Please try again.",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     } catch (e: Exception) {
+                        showLoading(false)
                         Log.e("API_ME", "Network/Unknown error", e)
+                        Toast.makeText(
+                            this@LoginActivity,
+                            "Network error. Check connection and try again.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+            .addOnFailureListener { e ->
+                showLoading(false)
+                Log.e("ID_TOKEN", "Failed to get token", e)
+                Toast.makeText(this, "Failed to get auth token", Toast.LENGTH_LONG).show()
+            }
+    }
+
+    private fun registerDeviceThenNavigate(authHeader: String) {
+        FirebaseMessaging.getInstance().token
+            .addOnSuccessListener { fcmToken ->
+                Log.d("FCM_TOKEN", "token_len=${fcmToken.length}")
+
+                lifecycleScope.launch {
+                    try {
+                        val r = ApiClient.api.registerDevice(
+                            authHeader = authHeader,
+                            body = DeviceRegisterRequest(fcm_token = fcmToken)
+                        )
+                        Log.d("DEVICE_REG", "Registered device id=${r.id}")
+                    } catch (e: Exception) {
+                        Log.e("DEVICE_REG", "Failed to register device", e)
+                        // Don't block login on device registration failure
+                    } finally {
                         showLoading(false)
                         navigateToMain()
                     }
                 }
             }
             .addOnFailureListener { e ->
-                Log.e("ID_TOKEN", "Failed to get token", e)
+                Log.e("FCM_TOKEN", "Failed to get FCM token", e)
                 showLoading(false)
                 navigateToMain()
             }
